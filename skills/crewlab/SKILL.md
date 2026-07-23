@@ -1,0 +1,98 @@
+---
+name: crewlab
+description: >
+  Multi-agent crew for Hermes: each agent owns exactly one task, the crew meets
+  (standup/sync/review), unblocks, and ships the project together. Activate with /crewlab.
+  Use when user wants a team of agents, crew meeting, multi-role project delivery,
+  or "mỗi agent một task / họp cùng nhau / hoàn thiện dự án".
+compatibility: Requires terminal; optional Hermes delegate_task for live roles
+metadata:
+  author: CrewLab
+  version: "0.1.0"
+  hermes:
+    tags: [multi-agent, crew, meeting, orchestration, project]
+    category: development
+    requires_toolsets: [terminal]
+---
+
+# CrewLab — multi-agent crew
+
+You are running **CrewLab**: a crew of agents that **meet** and **ship one project**.
+
+## Hard rules
+
+1. **One agent = one task** — never assign two active tasks to the same agent.
+2. **No silent task stealing** — reassignment only via meeting decision + update `crew-spec` / STATE.
+3. **Meet before thrash** — if blocked >1 step, call a meeting round (CLI or structured log).
+4. **Ship together** — project complete only when all tasks `done|skipped` and no open blockers.
+
+## Roles (default crew)
+
+| Agent id | Role | Single task |
+|----------|------|-------------|
+| `lead` | Crew Lead | `plan-and-coordinate` |
+| `builder` | Builder | `implement-core` |
+| `reviewer` | Reviewer | `review-and-test` |
+| `integrator` | Integrator | `integrate-and-ship` |
+
+Detailed prompts: `agents/*.md` next to this skill (SoT `C:\Dev\CrewLab\skills\crewlab\agents`).
+
+## Workflow
+
+```text
+1. Clarify goal → crewlab init <dir> --name <crew>
+2. Edit crew-spec.yaml (agents[] each has task_id; tasks[] match)
+3. crewlab validate <spec>
+4. Loop:
+   a. Each agent works ONLY its task
+   b. crewlab task <spec> --agent <id> --status in_progress|done|blocked --result "..."
+   c. crewlab meeting <spec>   # sync, blockers, next actions
+   d. crewlab status <spec>
+5. Stop when complete=true (DoD + all tasks closed)
+```
+
+## CLI (Windows)
+
+```powershell
+cd C:\Dev\CrewLab
+python -m pip install -e ".[dev]"
+crewlab init C:\Dev\CrewLab\runs\my-crew --name my-crew
+crewlab validate C:\Dev\CrewLab\runs\my-crew\crew-spec.yaml
+crewlab assign  C:\Dev\CrewLab\runs\my-crew\crew-spec.yaml
+crewlab meeting C:\Dev\CrewLab\runs\my-crew\crew-spec.yaml
+crewlab task    C:\Dev\CrewLab\runs\my-crew\crew-spec.yaml --agent builder --status done --result "impl ok"
+crewlab status  C:\Dev\CrewLab\runs\my-crew\crew-spec.yaml
+crewlab smoke
+```
+
+Attach to Hermes (junction only, no core patch):
+
+```powershell
+powershell -File C:\Dev\CrewLab\scripts\install.ps1
+# or: crewlab attach
+```
+
+## When user says /crewlab or "tạo crew"
+
+1. Confirm **project goal** in one sentence.
+2. Propose **≥2 agents**, each with **exactly one** task_id.
+3. Write `crew-spec.yaml` (validate must PASS).
+4. Run kickoff meeting; then execute tasks in dependency order.
+5. After each major step, meeting or status update.
+6. Closeout meeting when DoD met; summarize decisions + ship path.
+
+## Meeting phases
+
+`open` → `status_reports` → `blockers` → `sync_decisions` → `next_actions` → `close`
+
+Each status report covers **only** that agent's owned task.
+
+## Relation to other labs
+
+| Lab | Focus |
+|-----|--------|
+| **CrewLab** | Multi-agent roles, one task each, meetings, ship project |
+| **LoopLab** | Single loop contract / OPAV / triage cron |
+| AgentLab `loop-crew` | Legacy CrewAI sample loop (maker/verifier) |
+
+Prefer CrewLab when the user wants a **team**, not a single loop agent.

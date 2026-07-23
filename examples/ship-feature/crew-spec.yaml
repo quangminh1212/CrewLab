@@ -1,0 +1,56 @@
+schema_version: "1.0"
+name: ship-feature
+goal: "Ship one small feature end-to-end with a 4-agent crew."
+agents:
+  - id: lead
+    role: Crew Lead
+    task_id: plan-and-coordinate
+    mission: Lock scope and run meetings only.
+  - id: builder
+    role: Builder
+    task_id: implement-core
+    mission: Implement the feature only.
+  - id: reviewer
+    role: Reviewer
+    task_id: review-and-test
+    mission: Review and test only.
+  - id: integrator
+    role: Integrator
+    task_id: integrate-and-ship
+    mission: Integrate and record ship path.
+tasks:
+  - id: plan-and-coordinate
+    title: Plan feature scope
+    owner: lead
+    status: todo
+    depends_on: []
+  - id: implement-core
+    title: Implement feature
+    owner: builder
+    status: todo
+    depends_on: [plan-and-coordinate]
+  - id: review-and-test
+    title: Review and test
+    owner: reviewer
+    status: todo
+    depends_on: [implement-core]
+  - id: integrate-and-ship
+    title: Ship and close
+    owner: integrator
+    status: todo
+    depends_on: [review-and-test]
+meetings:
+  default_kind: standup
+  cadence: per-iteration
+  phases: [open, status_reports, blockers, sync_decisions, next_actions, close]
+definition_of_done:
+  - All tasks done or skipped
+  - No open blockers
+  - Integrator recorded ship artifact path
+stop_conditions:
+  max_meetings: 8
+  success_signal: all_tasks_done
+  failure_policy: stop_and_report
+hermes:
+  skill: crewlab
+  delegate: true

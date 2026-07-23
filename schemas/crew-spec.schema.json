@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://crewlab.local/schemas/crew-spec.schema.json",
+  "title": "CrewLab crew-spec",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "name",
+    "goal",
+    "agents",
+    "tasks",
+    "meetings",
+    "definition_of_done",
+    "stop_conditions"
+  ],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "name": { "type": "string", "minLength": 1 },
+    "goal": { "type": "string", "minLength": 1 },
+    "agents": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "required": ["id", "role", "task_id"],
+        "properties": {
+          "id": { "type": "string" },
+          "role": { "type": "string" },
+          "task_id": { "type": "string" },
+          "mission": { "type": "string" }
+        },
+        "not": {
+          "anyOf": [
+            { "required": ["task_ids"] },
+            { "required": ["tasks"] }
+          ]
+        }
+      }
+    },
+    "tasks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "description": { "type": "string" },
+          "owner": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": ["todo", "in_progress", "blocked", "done", "skipped"]
+          },
+          "depends_on": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "meetings": {
+      "type": "object",
+      "properties": {
+        "default_kind": {
+          "type": "string",
+          "enum": ["kickoff", "standup", "sync", "review", "retro", "decision", "closeout"]
+        },
+        "cadence": { "type": "string" },
+        "phases": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "definition_of_done": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" }
+    },
+    "stop_conditions": { "type": "object" }
+  },
+  "additionalProperties": true
+}
