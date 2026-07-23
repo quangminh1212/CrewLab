@@ -92,7 +92,9 @@ Each status report covers **only** that agent's owned task.
 | Lab | Focus |
 |-----|--------|
 | **CrewLab** | Multi-agent roles, one task each, meetings, ship project |
+| **DeerFlow** (subrepo `labs/deer-flow` @ **v2.0.0**) | Super Agent harness — subagents, sandbox, UI; skill `/deerflow` |
 | **LoopLab** | Single loop contract / OPAV / triage cron |
 | AgentLab `loop-crew` | Legacy CrewAI sample loop (maker/verifier) |
 
-Prefer CrewLab when the user wants a **team**, not a single loop agent.
+Prefer CrewLab when the user wants a **team**, not a single loop agent.  
+Prefer DeerFlow subrepo when the team needs the full long-horizon harness (see `skills/deerflow/SKILL.md`).

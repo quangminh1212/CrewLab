@@ -1,0 +1,4 @@
+[submodule "labs/deer-flow"]
+	path = labs/deer-flow
+	url = https://github.com/bytedance/deer-flow.git
+	# Pin: official release tag v2.0.0 (DeerFlow 2.0). No upstream tag 2.20 / v2.2.0.

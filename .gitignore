@@ -15,3 +15,12 @@ runs/*
 *.log
 .DS_Store
 Thumbs.db
+
+# DeerFlow subrepo local runtime (never commit secrets / build junk)
+labs/deer-flow/.env
+labs/deer-flow/**/.env
+labs/deer-flow/**/node_modules/
+labs/deer-flow/**/.venv/
+labs/deer-flow/**/__pycache__/
+labs/deer-flow/logs/
+labs/deer-flow/frontend/.next/

@@ -33,5 +33,16 @@ powershell -File C:\Dev\CrewLab\scripts\install.ps1
 
 - `crewlab/` — CLI + validate + meeting + state
 - `skills/crewlab/` — Hermes skill + role prompts
+- `skills/deerflow/` — DeerFlow subrepo skill (pin **v2.0.0**)
+- `labs/deer-flow/` — **git submodule** [bytedance/deer-flow](https://github.com/bytedance/deer-flow) @ **v2.0.0**
 - `examples/ship-feature/` — sample crew-spec
 - `schemas/crew-spec.schema.json` — JSON Schema
+
+## DeerFlow subrepo
+
+```powershell
+git submodule update --init --recursive labs/deer-flow
+git -C labs/deer-flow describe --tags   # v2.0.0
+```
+
+Pin note: upstream has no `2.20` tag; official 2.x release is **v2.0.0**. See `labs/README.md`.
