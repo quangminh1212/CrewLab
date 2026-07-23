@@ -2,7 +2,7 @@
 <#
 .SYNOPSIS
   Attach CrewLab to local Hermes Agent (junctions only).
-  SoT stays in C:\Dev\CrewLab — no hermes-agent source edits.
+  SoT stays in C:\Dev\CrewLab - no hermes-agent source edits.
 #>
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -15,7 +15,7 @@ Write-Host "Repo:   $Root"
 Write-Host "Hermes: $Hermes"
 
 if (-not (Test-Path $Hermes)) {
-  throw "Hermes home not found: $Hermes — install Hermes Agent first."
+  throw "Hermes home not found: $Hermes - install Hermes Agent first."
 }
 if (-not (Test-Path $SkillsSrc)) {
   throw "skills/ missing under $Root"
@@ -39,7 +39,7 @@ function Ensure-Junction($dst, $src) {
       Write-Host "Re-pointing junction: $dst"
       cmd /c "rmdir `"$dst`"" | Out-Null
     } else {
-      throw "Path exists and is not a junction: $dst — remove manually or run uninstall.ps1 first."
+      throw "Path exists and is not a junction: $dst - remove manually or run uninstall.ps1 first."
     }
   }
   cmd /c mklink /J "$dst" "$src" | Write-Host
