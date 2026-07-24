@@ -277,12 +277,15 @@ def is_project_complete(spec: dict[str, Any], state: dict[str, Any]) -> tuple[bo
 
 
 def status_report(spec: dict[str, Any], state: dict[str, Any]) -> str:
+    from crewlab.process import normalize_process, process_notes
+
     v = validate_spec(spec)
     prog = task_progress(state)
     done, notes = is_project_complete(spec, state)
     lines = [
         f"crew:   {spec.get('name')}",
         f"goal:   {spec.get('goal')}",
+        f"process:{normalize_process(spec)}",
         f"round:  {state.get('meeting_round', 0)}",
         f"status: {state.get('status')} | complete={done}",
         f"tasks:  {prog.get('done', 0)}/{prog.get('total', 0)} done "
@@ -297,6 +300,8 @@ def status_report(spec: dict[str, Any], state: dict[str, Any]) -> str:
         tid = a.get("task_id")
         st = next((t.get("status") for t in (state.get("tasks") or []) if t.get("id") == tid), "?")
         lines.append(f"  - {a.get('id')} [{a.get('role')}] → {tid} ({st})")
+    for pn in process_notes(spec):
+        lines.append(f"  · {pn}" if not pn.startswith("process=") else f"hint:  {pn}")
     open_b = list_blockers(state, open_only=True)
     if open_b:
         lines.append("blockers (open):")

@@ -1,0 +1,93 @@
+{
+  "round": 1,
+  "complete": false,
+  "notes": [
+    "4 task(s) not done: plan-and-coordinate, implement-core, review-and-test, integrate-and-ship"
+  ],
+  "progress": {
+    "skipped": 0,
+    "done": 0,
+    "blocked": 0,
+    "in_progress": 0,
+    "todo": 4,
+    "total": 4
+  },
+  "agenda": {
+    "crew": "ship-feature",
+    "goal": "Ship one small feature end-to-end with a 4-agent crew.",
+    "kind": "standup",
+    "round": 1,
+    "at": "2026-07-24T14:51:14Z",
+    "phases": [
+      "open",
+      "status_reports",
+      "blockers",
+      "sync_decisions",
+      "next_actions",
+      "close"
+    ],
+    "status_reports": [
+      {
+        "agent": "lead",
+        "role": "Crew Lead",
+        "task_id": "plan-and-coordinate",
+        "status": "todo",
+        "result": null,
+        "speak": "[lead] task=plan-and-coordinate status=todo: report progress on single owned task only."
+      },
+      {
+        "agent": "builder",
+        "role": "Builder",
+        "task_id": "implement-core",
+        "status": "todo",
+        "result": null,
+        "speak": "[builder] task=implement-core status=todo: report progress on single owned task only."
+      },
+      {
+        "agent": "reviewer",
+        "role": "Reviewer",
+        "task_id": "review-and-test",
+        "status": "todo",
+        "result": null,
+        "speak": "[reviewer] task=review-and-test status=todo: report progress on single owned task only."
+      },
+      {
+        "agent": "integrator",
+        "role": "Integrator",
+        "task_id": "integrate-and-ship",
+        "status": "todo",
+        "result": null,
+        "speak": "[integrator] task=integrate-and-ship status=todo: report progress on single owned task only."
+      }
+    ],
+    "blockers": [],
+    "next_actions": [
+      {
+        "agent": "lead",
+        "task_id": "plan-and-coordinate",
+        "action": "Continue/complete only task 'plan-and-coordinate' (no scope creep)"
+      },
+      {
+        "agent": "builder",
+        "task_id": "implement-core",
+        "action": "Continue/complete only task 'implement-core' (no scope creep)"
+      },
+      {
+        "agent": "reviewer",
+        "task_id": "review-and-test",
+        "action": "Continue/complete only task 'review-and-test' (no scope creep)"
+      },
+      {
+        "agent": "integrator",
+        "task_id": "integrate-and-ship",
+        "action": "Continue/complete only task 'integrate-and-ship' (no scope creep)"
+      }
+    ],
+    "definition_of_done": [
+      "All tasks done or skipped",
+      "No open blockers",
+      "Integrator recorded ship artifact path"
+    ],
+    "rule": "ONE AGENT = ONE TASK. No agent may pick up another's task without a formal reassignment in a meeting decision."
+  }
+}

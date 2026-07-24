@@ -11,6 +11,7 @@ DEFAULT_SPEC: dict[str, Any] = {
     "schema_version": "1.0",
     "name": "example-crew",
     "goal": "Ship one bounded project outcome with a multi-agent crew.",
+    "process": "collaborative",
     "agents": [
         {
             "id": "lead",

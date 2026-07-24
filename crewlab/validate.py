@@ -20,6 +20,7 @@ ALLOWED_STATUS = frozenset({"todo", "in_progress", "blocked", "done", "skipped"}
 ALLOWED_MEETING_KINDS = frozenset(
     {"kickoff", "standup", "sync", "review", "retro", "decision", "closeout"}
 )
+ALLOWED_PROCESS = frozenset({"collaborative", "sequential", "hierarchical"})
 
 
 @dataclass
@@ -63,6 +64,14 @@ def validate_spec(spec: dict[str, Any]) -> ValidationResult:
     goal = spec.get("goal")
     if goal is not None and (not isinstance(goal, str) or not goal.strip()):
         errors.append("goal must be a non-empty string")
+
+    if "process" in spec:
+        proc = str(spec.get("process") or "").strip().lower()
+        if proc and proc not in ALLOWED_PROCESS:
+            errors.append(
+                f"process invalid: {spec.get('process')} "
+                f"(allowed: {sorted(ALLOWED_PROCESS)})"
+            )
 
     agents = spec.get("agents")
     tasks = spec.get("tasks")

@@ -1,0 +1,60 @@
+# MetaGPT SOP-inspired software crew (FoundationAgents/MetaGPT)
+schema_version: "1.0"
+name: metagpt-sop
+goal: Follow a software SOP — product → architecture → implement → QA.
+process: sequential
+source:
+  inspired_by: https://github.com/FoundationAgents/MetaGPT
+agents:
+  - id: pm
+    role: Product Manager
+    task_id: prd
+    mission: Own PRD only.
+  - id: architect
+    role: Architect
+    task_id: design
+    mission: Own system design only.
+  - id: engineer
+    role: Engineer
+    task_id: code
+    mission: Implement design only.
+  - id: qa
+    role: QA Engineer
+    task_id: qa
+    mission: Test and accept only.
+tasks:
+  - id: prd
+    title: Product requirements
+    owner: pm
+    status: todo
+    depends_on: []
+  - id: design
+    title: Architecture design
+    owner: architect
+    status: todo
+    depends_on: [prd]
+  - id: code
+    title: Implementation
+    owner: engineer
+    status: todo
+    depends_on: [design]
+  - id: qa
+    title: QA acceptance
+    owner: qa
+    status: todo
+    depends_on: [code]
+meetings:
+  default_kind: review
+  cadence: per-sop-stage
+  phases: [open, status_reports, blockers, sync_decisions, next_actions, close]
+definition_of_done:
+  - All SOP stages done
+  - No open blockers
+  - QA acceptance recorded
+stop_conditions:
+  max_meetings: 12
+  success_signal: all_tasks_done
+  failure_policy: stop_and_report
+hermes:
+  skill: crewlab
+  delegate: true

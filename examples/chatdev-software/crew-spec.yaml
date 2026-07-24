@@ -1,0 +1,61 @@
+# ChatDev-inspired software company crew (OpenBMB/ChatDev roles, one agent = one task)
+schema_version: "1.0"
+name: chatdev-software
+goal: Build one small software feature end-to-end via sequential company roles.
+process: sequential
+source:
+  inspired_by: https://github.com/OpenBMB/ChatDev
+  license_note: Apache-2.0 upstream; this YAML is CrewLab MIT
+agents:
+  - id: ceo
+    role: CEO
+    task_id: product-brief
+    mission: Write product brief and success criteria only.
+  - id: cto
+    role: CTO
+    task_id: tech-design
+    mission: Design architecture and interface contracts only.
+  - id: programmer
+    role: Programmer
+    task_id: implement
+    mission: Implement only the agreed design.
+  - id: reviewer
+    role: Code Reviewer
+    task_id: review
+    mission: Review and test; block ship on defects.
+tasks:
+  - id: product-brief
+    title: Product brief
+    owner: ceo
+    status: todo
+    depends_on: []
+  - id: tech-design
+    title: Technical design
+    owner: cto
+    status: todo
+    depends_on: [product-brief]
+  - id: implement
+    title: Implementation
+    owner: programmer
+    status: todo
+    depends_on: [tech-design]
+  - id: review
+    title: Review and test
+    owner: reviewer
+    status: todo
+    depends_on: [implement]
+meetings:
+  default_kind: sync
+  cadence: per-phase
+  phases: [open, status_reports, blockers, sync_decisions, next_actions, close]
+definition_of_done:
+  - All tasks done or skipped
+  - No open blockers
+  - Reviewer records ship decision
+stop_conditions:
+  max_meetings: 10
+  success_signal: all_tasks_done
+  failure_policy: stop_and_report
+hermes:
+  skill: crewlab
+  delegate: true

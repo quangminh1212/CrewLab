@@ -1,0 +1,56 @@
+# Equivalent GitHub projects for CrewLab (multi-agent crews / meetings / ship)
+# status: integrated = code/templates use it; referenced = catalog + docs only
+schema_version: "1"
+lab: crewlab
+entries:
+  - id: deer-flow
+    url: https://github.com/bytedance/deer-flow
+    license: MIT
+    status: integrated
+    role: Super-agent harness subrepo (labs/deer-flow @ v2.0.0)
+    evidence:
+      - labs/deer-flow
+      - skills/deerflow/SKILL.md
+  - id: crewai
+    url: https://github.com/crewAIInc/crewAI
+    license: MIT
+    status: integrated
+    role: Process model sequential/hierarchical + role-playing crew
+    evidence:
+      - crewlab/process.py
+      - examples/crewai-sequential/crew-spec.yaml
+  - id: chatdev
+    url: https://github.com/OpenBMB/ChatDev
+    license: Apache-2.0
+    status: integrated
+    role: Software company roles (CEO/CTO/Programmer/Reviewer) sequential waterfall
+    evidence:
+      - examples/chatdev-software/crew-spec.yaml
+      - crewlab/templates.py
+  - id: metagpt
+    url: https://github.com/FoundationAgents/MetaGPT
+    license: MIT
+    status: integrated
+    role: SOP software company agents → optional metagpt template
+    evidence:
+      - examples/metagpt-sop/crew-spec.yaml
+  - id: autogen
+    url: https://github.com/microsoft/autogen
+    license: CC-BY-4.0
+    status: referenced
+    role: Multi-agent conversation framework (pattern reference)
+    evidence: []
+  - id: superpowers
+    url: https://github.com/obra/superpowers
+    license: MIT
+    status: referenced
+    role: Skills methodology, worktrees, TDD, subagent execution
+    evidence: []
+  - id: hermes-agent
+    url: https://github.com/NousResearch/hermes-agent
+    license: MIT
+    status: integrated
+    role: Host runtime — skill junction attach
+    evidence:
+      - crewlab/install.py
+      - skills/crewlab/SKILL.md

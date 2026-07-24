@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "crewlab"
-version = "0.1.0"
+version = "0.1.2"
 description = "CrewLab — multi-agent crews: one agent one task, meet and ship projects together"
 readme = "README.md"
 requires-python = ">=3.11"

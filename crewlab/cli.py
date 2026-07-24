@@ -22,6 +22,7 @@ from crewlab.project import (
     set_task_status,
     status_report,
 )
+from crewlab.sources import check_catalog, format_catalog
 from crewlab.templates import write_init_spec, write_project_scaffold
 from crewlab.validate import ALLOWED_MEETING_KINDS, validate_spec
 
@@ -276,10 +277,34 @@ def _cmd_detach(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_sources(args: argparse.Namespace) -> int:
+    print(format_catalog())
+    return 0 if not check_catalog() else 1
+
+
 def _cmd_smoke(args: argparse.Namespace) -> int:
     """End-to-end: init temp crew, validate, task updates, meeting, complete."""
     import shutil
     import tempfile
+
+    problems = check_catalog()
+    if problems:
+        print("FAIL sources catalog:", file=sys.stderr)
+        for p in problems:
+            print(f"  - {p}", file=sys.stderr)
+        return 1
+    print("sources catalog: PASS")
+
+    # validate integrated example crews from GitHub-inspired templates
+    root_repo = Path(__file__).resolve().parent.parent
+    for ex in sorted((root_repo / "examples").glob("*/crew-spec.yaml")):
+        spec = load_spec(ex)
+        v = validate_spec(spec)
+        tag = "OK" if v.ok else "FAIL"
+        print(f"  [{tag}] example {ex.parent.name}")
+        if not v.ok:
+            print(v.summary(), file=sys.stderr)
+            return 1
 
     root = Path(tempfile.mkdtemp(prefix="crewlab-smoke-"))
     try:
@@ -402,6 +427,9 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("detach", help="Remove Hermes skill junction")
     s.add_argument("--hermes-home", default=None)
     s.set_defaults(func=_cmd_detach)
+
+    s = sub.add_parser("sources", help="List equivalent GitHub projects + integration check")
+    s.set_defaults(func=_cmd_sources)
 
     s = sub.add_parser("smoke", help="Self-test scaffold + meeting + complete")
     s.add_argument("--keep", action="store_true", help="Keep temp project dir")

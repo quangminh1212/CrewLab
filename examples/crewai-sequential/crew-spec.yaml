@@ -1,0 +1,50 @@
+# CrewAI sequential process mapped to CrewLab (one agent = one task)
+schema_version: "1.0"
+name: crewai-sequential
+goal: Execute a sequential multi-agent workflow with explicit task dependencies.
+process: sequential
+source:
+  inspired_by: https://github.com/crewAIInc/crewAI
+agents:
+  - id: researcher
+    role: Researcher
+    task_id: gather-facts
+    mission: Collect facts only; no implementation.
+  - id: writer
+    role: Writer
+    task_id: draft
+    mission: Draft deliverable from research only.
+  - id: editor
+    role: Editor
+    task_id: polish
+    mission: Edit and quality-gate the draft only.
+tasks:
+  - id: gather-facts
+    title: Gather facts
+    owner: researcher
+    status: todo
+    depends_on: []
+  - id: draft
+    title: Draft deliverable
+    owner: writer
+    status: todo
+    depends_on: [gather-facts]
+  - id: polish
+    title: Polish and ship
+    owner: editor
+    status: todo
+    depends_on: [draft]
+meetings:
+  default_kind: standup
+  cadence: per-task
+  phases: [open, status_reports, blockers, sync_decisions, next_actions, close]
+definition_of_done:
+  - All tasks done or skipped
+  - No open blockers
+stop_conditions:
+  max_meetings: 8
+  success_signal: all_tasks_done
+  failure_policy: stop_and_report
+hermes:
+  skill: crewlab
+  delegate: true
