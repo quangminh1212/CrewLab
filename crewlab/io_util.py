@@ -8,9 +8,32 @@ from typing import Any
 
 import yaml
 
+# Accepted filenames when user passes a project directory instead of a file path.
+_SPEC_BASENAMES = ("crew-spec.yaml", "crew-spec.yml", "crew-spec.json")
+
+
+def resolve_spec_path(path: str | Path) -> Path:
+    """Resolve a crew-spec file path or a project directory containing one.
+
+    User flow after ``crewlab init <dir>`` often uses the directory for
+    ``status`` / ``meeting`` / ``task``; accept that without forcing the file path.
+    """
+    p = Path(path)
+    if p.is_file():
+        return p
+    if p.is_dir():
+        for name in _SPEC_BASENAMES:
+            candidate = p / name
+            if candidate.is_file():
+                return candidate
+        raise FileNotFoundError(
+            f"no crew-spec.yaml (or .yml/.json) in directory: {p}"
+        )
+    raise FileNotFoundError(f"spec not found: {p}")
+
 
 def load_spec(path: str | Path) -> dict[str, Any]:
-    p = Path(path)
+    p = resolve_spec_path(path)
     text = p.read_text(encoding="utf-8")
     if p.suffix.lower() == ".json":
         data = json.loads(text)
@@ -38,4 +61,4 @@ def dump_json(path: str | Path, data: dict[str, Any]) -> None:
 
 def project_dir_for(spec_path: str | Path) -> Path:
     """Working directory for state/meeting logs = directory of the crew-spec."""
-    return Path(spec_path).resolve().parent
+    return resolve_spec_path(spec_path).resolve().parent
