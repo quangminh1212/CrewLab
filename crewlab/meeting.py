@@ -144,6 +144,7 @@ def run_meeting(
     spec_path: str | Path,
     *,
     dry_run: bool = False,
+    kind: str | None = None,
 ) -> dict[str, Any]:
     """Execute one meeting round. Returns agenda + paths written."""
     result = validate_spec(spec)
@@ -159,6 +160,13 @@ def run_meeting(
         raise RuntimeError(f"max_meetings={max_m} exceeded (next would be {round_no})")
 
     agenda = build_agenda(spec, state, round_no)
+    if kind:
+        from crewlab.validate import ALLOWED_MEETING_KINDS
+
+        k = kind.strip().lower()
+        if k not in ALLOWED_MEETING_KINDS:
+            raise ValueError(f"invalid meeting kind: {kind} (allowed: {sorted(ALLOWED_MEETING_KINDS)})")
+        agenda["kind"] = k
     complete, notes = is_project_complete(spec, state)
     md = render_meeting_md(agenda, complete, notes)
 

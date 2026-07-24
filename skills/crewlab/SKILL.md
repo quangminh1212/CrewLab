@@ -8,7 +8,7 @@ description: >
 compatibility: Requires terminal; optional Hermes delegate_task for live roles
 metadata:
   author: CrewLab
-  version: "0.1.0"
+  version: "0.1.1"
   hermes:
     tags: [multi-agent, crew, meeting, orchestration, project]
     category: development
@@ -57,11 +57,15 @@ Detailed prompts: `agents/*.md` next to this skill (SoT `C:\Dev\CrewLab\skills\c
 cd C:\Dev\CrewLab
 python -m pip install -e ".[dev]"
 crewlab init C:\Dev\CrewLab\runs\my-crew --name my-crew
-crewlab validate C:\Dev\CrewLab\runs\my-crew\crew-spec.yaml
-crewlab assign  C:\Dev\CrewLab\runs\my-crew\crew-spec.yaml
-crewlab meeting C:\Dev\CrewLab\runs\my-crew\crew-spec.yaml
-crewlab task    C:\Dev\CrewLab\runs\my-crew\crew-spec.yaml --agent builder --status done --result "impl ok"
-crewlab status  C:\Dev\CrewLab\runs\my-crew\crew-spec.yaml
+crewlab validate C:\Dev\CrewLab\runs\my-crew
+crewlab assign  C:\Dev\CrewLab\runs\my-crew
+crewlab meeting C:\Dev\CrewLab\runs\my-crew --kind kickoff
+crewlab task    C:\Dev\CrewLab\runs\my-crew --agent builder --status done --result "impl ok"
+crewlab blocker add C:\Dev\CrewLab\runs\my-crew "waiting on API" --agent builder
+crewlab blocker resolve C:\Dev\CrewLab\runs\my-crew b1
+crewlab decision add C:\Dev\CrewLab\runs\my-crew "Ship v1 without feature X"
+crewlab reassign C:\Dev\CrewLab\runs\my-crew --agent builder --task review-and-test
+crewlab status  C:\Dev\CrewLab\runs\my-crew
 crewlab smoke
 ```
 

@@ -9,10 +9,13 @@ cd C:\Dev\CrewLab
 python -m pip install -e ".[dev]"
 crewlab smoke
 crewlab init runs\demo --name demo
-crewlab validate runs\demo\crew-spec.yaml
-crewlab meeting runs\demo\crew-spec.yaml
-crewlab task runs\demo\crew-spec.yaml --agent builder --status in_progress
-crewlab status runs\demo\crew-spec.yaml
+crewlab validate runs\demo
+crewlab meeting runs\demo --kind kickoff
+crewlab task runs\demo --agent builder --status in_progress
+crewlab blocker add runs\demo "need design sign-off" --agent builder
+crewlab reassign runs\demo --agent builder --task review-and-test
+crewlab decision add runs\demo "Swap builder/reviewer for this sprint"
+crewlab status runs\demo
 ```
 
 ## Hermes attach

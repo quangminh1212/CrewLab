@@ -93,6 +93,156 @@ def set_task_status(
         raise KeyError(f"task not found: {task_id}")
 
 
+def _next_blocker_id(state: dict[str, Any]) -> str:
+    existing = []
+    for b in state.get("blockers") or []:
+        if isinstance(b, dict) and isinstance(b.get("id"), str):
+            existing.append(b["id"])
+    n = 1
+    while f"b{n}" in existing:
+        n += 1
+    return f"b{n}"
+
+
+def add_blocker(
+    state: dict[str, Any],
+    text: str,
+    *,
+    agent: str | None = None,
+    task_id: str | None = None,
+) -> dict[str, Any]:
+    """Record an open blocker (blocks project complete until resolved)."""
+    text = (text or "").strip()
+    if not text:
+        raise ValueError("blocker text required")
+    item = {
+        "id": _next_blocker_id(state),
+        "text": text,
+        "agent": agent,
+        "task_id": task_id,
+        "at": utc_now(),
+        "resolved": False,
+    }
+    state.setdefault("blockers", []).append(item)
+    return item
+
+
+def resolve_blocker(state: dict[str, Any], blocker_id: str) -> dict[str, Any]:
+    """Mark blocker resolved by id."""
+    bid = (blocker_id or "").strip()
+    for b in state.get("blockers") or []:
+        if isinstance(b, dict) and b.get("id") == bid:
+            b["resolved"] = True
+            b["resolved_at"] = utc_now()
+            return b
+    raise KeyError(f"blocker not found: {bid}")
+
+
+def list_blockers(state: dict[str, Any], *, open_only: bool = False) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for b in state.get("blockers") or []:
+        if not isinstance(b, dict):
+            continue
+        if open_only and b.get("resolved"):
+            continue
+        out.append(b)
+    return out
+
+
+def add_decision(
+    state: dict[str, Any],
+    text: str,
+    *,
+    round_no: int | None = None,
+) -> dict[str, Any]:
+    """Record a formal meeting decision (e.g. reassignment approval)."""
+    text = (text or "").strip()
+    if not text:
+        raise ValueError("decision text required")
+    item = {
+        "at": utc_now(),
+        "text": text,
+        "round": round_no if round_no is not None else state.get("meeting_round") or 0,
+    }
+    state.setdefault("decisions", []).append(item)
+    return item
+
+
+def reassign_agent_task(
+    spec: dict[str, Any],
+    state: dict[str, Any],
+    *,
+    agent_id: str,
+    task_id: str,
+    decision: str | None = None,
+) -> dict[str, Any]:
+    """Reassign one agent to one task (swap if another agent already owns it).
+
+    Enforces one-agent-one-task. Records a decision when ``decision`` is set
+    (or a default note). Updates both crew-spec agents[] and STATE owners.
+    """
+    agent_id = (agent_id or "").strip()
+    task_id = (task_id or "").strip()
+    agents = [a for a in (spec.get("agents") or []) if isinstance(a, dict)]
+    tasks = [t for t in (spec.get("tasks") or []) if isinstance(t, dict)]
+    agent = next((a for a in agents if a.get("id") == agent_id), None)
+    if not agent:
+        raise KeyError(f"unknown agent: {agent_id}")
+    if not any(t.get("id") == task_id for t in tasks):
+        raise KeyError(f"unknown task: {task_id}")
+
+    old_task = agent.get("task_id")
+    other = next(
+        (a for a in agents if a.get("id") != agent_id and a.get("task_id") == task_id),
+        None,
+    )
+    if old_task == task_id:
+        return {
+            "agent": agent_id,
+            "task_id": task_id,
+            "swapped_with": None,
+            "unchanged": True,
+        }
+
+    agent["task_id"] = task_id
+    swapped_with = None
+    if other is not None:
+        other["task_id"] = old_task
+        swapped_with = other.get("id")
+
+    # Sync STATE task owners
+    for st in state.get("tasks") or []:
+        if not isinstance(st, dict):
+            continue
+        if st.get("id") == task_id:
+            st["owner"] = agent_id
+            st["updated_at"] = utc_now()
+        elif swapped_with and st.get("id") == old_task:
+            st["owner"] = swapped_with
+            st["updated_at"] = utc_now()
+
+    # Sync task.owner in spec when present
+    for t in tasks:
+        if t.get("id") == task_id:
+            t["owner"] = agent_id
+        elif swapped_with and t.get("id") == old_task:
+            t["owner"] = swapped_with
+
+    note = decision or (
+        f"Reassign {agent_id}: {old_task} → {task_id}"
+        + (f" (swap with {swapped_with})" if swapped_with else "")
+    )
+    add_decision(state, note)
+    return {
+        "agent": agent_id,
+        "from_task": old_task,
+        "task_id": task_id,
+        "swapped_with": swapped_with,
+        "decision": note,
+        "unchanged": False,
+    }
+
+
 def task_progress(state: dict[str, Any]) -> dict[str, int]:
     counts = {s: 0 for s in ALLOWED_STATUS}
     for t in state.get("tasks") or []:
@@ -147,10 +297,20 @@ def status_report(spec: dict[str, Any], state: dict[str, Any]) -> str:
         tid = a.get("task_id")
         st = next((t.get("status") for t in (state.get("tasks") or []) if t.get("id") == tid), "?")
         lines.append(f"  - {a.get('id')} [{a.get('role')}] → {tid} ({st})")
+    open_b = list_blockers(state, open_only=True)
+    if open_b:
+        lines.append("blockers (open):")
+        for b in open_b:
+            who = b.get("agent") or b.get("task_id") or "-"
+            lines.append(f"  - [{b.get('id')}] {b.get('text')} ({who})")
     if notes:
         lines.append("notes:")
         for n in notes:
             lines.append(f"  - {n}")
-    if state.get("decisions"):
-        lines.append(f"decisions: {len(state['decisions'])}")
+    decisions = state.get("decisions") or []
+    if decisions:
+        lines.append(f"decisions: {len(decisions)}")
+        for d in decisions[-3:]:
+            if isinstance(d, dict):
+                lines.append(f"  - r{d.get('round', '?')}: {d.get('text')}")
     return "\n".join(lines)
