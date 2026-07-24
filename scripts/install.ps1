@@ -59,6 +59,24 @@ if (Test-Path $ctxSrc) {
   Write-Host "Wrote $ctxDst"
 }
 
+# Best-effort: editable CLI into Hermes agent venv (terminal tool can run python -m crewlab)
+$HermesPyCandidates = @(
+  (Join-Path $Hermes 'hermes-agent\venv\Scripts\python.exe'),
+  (Join-Path $Hermes 'hermes-agent\.venv\Scripts\python.exe')
+)
+foreach ($py in $HermesPyCandidates) {
+  if (Test-Path $py) {
+    Write-Host "Installing crewlab CLI into Hermes venv: $py"
+    & $py -m pip install -e $Root -q
+    if ($LASTEXITCODE -ne 0) {
+      Write-Warning "pip install into Hermes venv failed (skills still attached)"
+    } else {
+      Write-Host "CLI OK: $py -m crewlab"
+    }
+    break
+  }
+}
+
 Write-Host ""
 Write-Host "OK. CrewLab attached (junction only)." -ForegroundColor Green
 Write-Host "In Hermes chat: /crewlab"
