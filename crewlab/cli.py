@@ -27,6 +27,17 @@ from crewlab.templates import write_init_spec, write_project_scaffold
 from crewlab.validate import ALLOWED_MEETING_KINDS, validate_spec
 
 
+def _ensure_utf8_stdio() -> None:
+    """Avoid UnicodeEncodeError on Windows consoles using cp1252."""
+    for stream in (sys.stdout, sys.stderr):
+        reconf = getattr(stream, "reconfigure", None)
+        if callable(reconf):
+            try:
+                reconf(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
+
+
 def _cmd_init(args: argparse.Namespace) -> int:
     path = Path(args.path)
     if path.suffix.lower() in {".yaml", ".yml", ".json"}:
@@ -439,6 +450,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    _ensure_utf8_stdio()
     parser = build_parser()
     args = parser.parse_args(argv)
     return int(args.func(args))
