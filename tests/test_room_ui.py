@@ -165,5 +165,10 @@ def test_ui_html_has_messenger_surface():
     assert "roster" in ROOM_HTML
     assert "btnNext" in ROOM_HTML
     assert "Next turn" in ROOM_HTML
-    assert "assignments" not in ROOM_HTML or True  # roster renders from API
     assert "/api/state" in ROOM_HTML
+    # Telegram / Messenger / Zalo theme switch
+    assert 'data-theme="telegram"' in ROOM_HTML
+    assert 'data-theme="messenger"' in ROOM_HTML or 'data-theme="messenger"' in ROOM_HTML
+    assert "zalo" in ROOM_HTML
+    assert "typing" in ROOM_HTML
+    assert "theme-btn" in ROOM_HTML

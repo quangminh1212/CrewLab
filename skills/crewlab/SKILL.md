@@ -92,12 +92,18 @@ agents:
 
 `crewlab run` builds prompts, writes `runs/<task_id>/prompt.md`, invokes CLI when on PATH, else prompt-only (manual complete + `crewlab task … --status done`).
 
-## Chat UI (Messenger / Telegram style)
+## Chat UI (Telegram / Messenger / Zalo)
 
 ```powershell
 crewlab ui C:\Dev\CrewLab\examples\multi-cli-room --port 8765
-# Browser: sidebar = phân công agent→task; main = bubbles; Next turn = agent kế tiếp
+# or detached: powershell -File C:\Dev\CrewLab\scripts\start-ui.ps1
+# Browser: theme switch Telegram|Messenger|Zalo; sidebar phân công; Next turn
 ```
+
+UI borrows layout cues from:
+- **Telegram** — dark panel, chat list, blue accent `#2AABEE`
+- **Messenger** — light theme, blue self-bubbles `#0084ff`
+- **Zalo** — light blue wallpaper, brand `#0068ff`, assignment chips
 
 Rules enforced by room engine:
 1. **One speaker at a time** (turn lock + queue from ready tasks)

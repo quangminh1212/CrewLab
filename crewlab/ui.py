@@ -1,4 +1,4 @@
-"""Messenger/Telegram-style chat UI for multi-CLI agent rooms.
+"""Chat UI inspired by Telegram / Messenger / Zalo for multi-CLI crews.
 
 stdlib only — no Flask/FastAPI dependency.
   crewlab ui <spec> --port 8765
@@ -13,112 +13,346 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import urlparse
 
 from crewlab.room import ChatRoom
 
 # ---------------------------------------------------------------------------
-# Embedded Messenger-like UI
+# UI: Telegram dark + Messenger bubbles + Zalo brand accents (theme switch)
 # ---------------------------------------------------------------------------
 
 ROOM_HTML = r"""<!DOCTYPE html>
-<html lang="vi">
+<html lang="vi" data-theme="telegram">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>CrewLab Room</title>
+<title>CrewLab Chat</title>
 <style>
-  :root {
+  /* —— Theme tokens (Telegram / Messenger / Zalo) —— */
+  html[data-theme="telegram"] {
     --bg: #0e1621;
+    --bg-chat: #0b141a;
     --panel: #17212b;
     --panel2: #232e3c;
-    --text: #e4e6eb;
-    --muted: #8b98a5;
+    --hover: #202b36;
+    --text: #f5f5f5;
+    --muted: #708499;
     --accent: #2AABEE;
+    --accent2: #5288c1;
+    --me-bubble: #2b5278;
+    --them-bubble: #182533;
+    --sys-bubble: #1c2733;
     --border: #0f141a;
-    --bubble-sys: #1e2c3a;
     --input: #242f3d;
+    --online: #4fae4e;
+    --danger: #e53935;
+    --shadow: 0 1px 2px rgba(0,0,0,.35);
+    --wallpaper: radial-gradient(ellipse at 20% 0%, #132033 0%, transparent 50%),
+                 radial-gradient(ellipse at 80% 100%, #0d1f18 0%, transparent 45%),
+                 var(--bg-chat);
   }
-  * { box-sizing: border-box; }
-  html, body { height: 100%; margin: 0; font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); }
-  .app { display: grid; grid-template-columns: 300px 1fr; height: 100vh; }
-  .sidebar { background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
-  .side-head { padding: 14px 16px; border-bottom: 1px solid var(--border); }
-  .side-head h1 { margin: 0; font-size: 16px; font-weight: 700; }
-  .side-head .goal { margin-top: 6px; font-size: 12px; color: var(--muted); line-height: 1.4; max-height: 3.6em; overflow: hidden; }
-  .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; background: var(--panel2); color: var(--muted); margin-top: 8px; }
-  .badge.ok { background: #1b4332; color: #95d5b2; }
-  .badge.busy { background: #3d2c1e; color: #ffd166; }
-  .roster { flex: 1; overflow-y: auto; padding: 8px; }
-  .agent-card {
-    display: flex; gap: 10px; padding: 10px; border-radius: 12px; cursor: default;
-    margin-bottom: 6px; background: transparent; border: 1px solid transparent;
+  html[data-theme="messenger"] {
+    --bg: #f0f2f5;
+    --bg-chat: #ffffff;
+    --panel: #ffffff;
+    --panel2: #f0f2f5;
+    --hover: #e4e6eb;
+    --text: #050505;
+    --muted: #65676b;
+    --accent: #0084ff;
+    --accent2: #00c6ff;
+    --me-bubble: #0084ff;
+    --them-bubble: #e4e6eb;
+    --sys-bubble: #e7f3ff;
+    --border: #ced0d4;
+    --input: #f0f2f5;
+    --online: #31a24c;
+    --danger: #f02849;
+    --shadow: 0 1px 2px rgba(0,0,0,.08);
+    --wallpaper: linear-gradient(180deg, #e7f3ff 0%, #ffffff 40%);
   }
-  .agent-card.next { border-color: var(--accent); background: rgba(42,171,238,.08); }
-  .agent-card.speaking { border-color: #F7B731; background: rgba(247,183,49,.1); }
-  .avatar {
-    width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-    font-weight: 700; font-size: 14px; color: #fff; flex-shrink: 0;
+  html[data-theme="zalo"] {
+    --bg: #e8f3ff;
+    --bg-chat: #e8f3ff;
+    --panel: #ffffff;
+    --panel2: #f0f7ff;
+    --hover: #e3f0ff;
+    --text: #081b33;
+    --muted: #5a6b7d;
+    --accent: #0068ff;
+    --accent2: #00a3ff;
+    --me-bubble: #e5f1ff;
+    --them-bubble: #ffffff;
+    --sys-bubble: #fff8e6;
+    --border: #d0e3ff;
+    --input: #ffffff;
+    --online: #1ec16b;
+    --danger: #e74c3c;
+    --shadow: 0 1px 3px rgba(0,80,180,.12);
+    --wallpaper: linear-gradient(180deg, #cfe6ff 0%, #e8f3ff 30%, #dcefff 100%);
   }
-  .agent-meta { min-width: 0; flex: 1; }
-  .agent-meta .name { font-weight: 600; font-size: 13px; }
-  .agent-meta .role { font-size: 11px; color: var(--muted); }
-  .agent-meta .task { font-size: 11px; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .st { font-size: 10px; padding: 1px 6px; border-radius: 8px; background: var(--panel2); color: var(--muted); }
-  .st.done { background: #1b4332; color: #95d5b2; }
-  .st.in_progress { background: #1a3a5c; color: #90caf9; }
-  .st.blocked { background: #4a1c1c; color: #ef9a9a; }
-  .side-foot { padding: 10px; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); }
 
-  .main { display: flex; flex-direction: column; min-width: 0; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Roboto, sans-serif;
+    background: var(--bg); color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+  .app {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    height: 100vh;
+    max-width: 1400px;
+    margin: 0 auto;
+    box-shadow: 0 0 40px rgba(0,0,0,.25);
+  }
+
+  /* —— Sidebar (Telegram / Zalo chat list) —— */
+  .sidebar {
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; min-width: 0; overflow: hidden;
+  }
+  .side-head {
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+  .brand-row { display: flex; align-items: center; gap: 10px; }
+  .brand-logo {
+    width: 40px; height: 40px; border-radius: 12px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 800; font-size: 15px; flex-shrink: 0;
+    box-shadow: var(--shadow);
+  }
+  .brand-logo span { transform: translateY(-1px); }
+  .brand-text h1 { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: .2px; }
+  .brand-text .sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .goal-box {
+    margin-top: 10px; padding: 8px 10px; border-radius: 10px;
+    background: var(--panel2); font-size: 12px; line-height: 1.45; color: var(--muted);
+    max-height: 4.2em; overflow: hidden;
+  }
+  .theme-row { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .theme-btn {
+    flex: 1; min-width: 90px; border: 1px solid var(--border); background: var(--panel2);
+    color: var(--text); border-radius: 16px; padding: 6px 8px; font-size: 11px;
+    font-weight: 600; cursor: pointer;
+  }
+  .theme-btn.active {
+    background: var(--accent); color: #fff; border-color: transparent;
+  }
+  .search {
+    margin: 10px 12px 6px; padding: 8px 12px; border-radius: 18px;
+    background: var(--input); border: 1px solid transparent;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .search input {
+    border: 0; outline: 0; background: transparent; color: var(--text);
+    font-size: 13px; width: 100%; font-family: inherit;
+  }
+  .search input::placeholder { color: var(--muted); }
+  .section-label {
+    padding: 8px 16px 4px; font-size: 11px; font-weight: 700;
+    color: var(--muted); text-transform: uppercase; letter-spacing: .6px;
+  }
+  .roster { flex: 1; overflow-y: auto; padding: 4px 8px 12px; }
+  .agent-card {
+    display: flex; gap: 10px; padding: 10px 10px; border-radius: 12px;
+    cursor: pointer; margin-bottom: 2px; border: 1px solid transparent;
+    transition: background .12s;
+  }
+  .agent-card:hover { background: var(--hover); }
+  .agent-card.next {
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  .agent-card.speaking {
+    background: color-mix(in srgb, #f7b731 14%, transparent);
+    border-color: color-mix(in srgb, #f7b731 50%, transparent);
+  }
+  .av-wrap { position: relative; flex-shrink: 0; }
+  .avatar {
+    width: 48px; height: 48px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 15px; color: #fff;
+    box-shadow: var(--shadow);
+  }
+  .dot {
+    position: absolute; right: 1px; bottom: 1px; width: 12px; height: 12px;
+    border-radius: 50%; border: 2px solid var(--panel); background: var(--muted);
+  }
+  .dot.on { background: var(--online); }
+  .dot.busy { background: #f7b731; animation: pulse 1.2s infinite; }
+  @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.15)} }
+  .agent-meta { min-width: 0; flex: 1; padding-top: 2px; }
+  .agent-meta .name-row { display: flex; align-items: center; gap: 6px; }
+  .agent-meta .name { font-weight: 650; font-size: 14px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .st {
+    font-size: 10px; padding: 2px 7px; border-radius: 10px;
+    background: var(--panel2); color: var(--muted); font-weight: 600; text-transform: uppercase;
+  }
+  .st.done { background: #d4edda; color: #1b5e20; }
+  html[data-theme="telegram"] .st.done { background: #1b4332; color: #95d5b2; }
+  .st.in_progress { background: #d6eaf8; color: #0d47a1; }
+  html[data-theme="telegram"] .st.in_progress { background: #1a3a5c; color: #90caf9; }
+  .st.blocked { background: #f8d7da; color: #7f1d1d; }
+  html[data-theme="telegram"] .st.blocked { background: #4a1c1c; color: #ef9a9a; }
+  .agent-meta .role { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .agent-meta .task {
+    font-size: 12px; margin-top: 3px; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .9;
+  }
+  .agent-meta .task b { color: var(--accent); font-weight: 650; }
+  .side-foot {
+    padding: 10px 14px; border-top: 1px solid var(--border);
+    font-size: 11px; color: var(--muted); line-height: 1.4;
+  }
+
+  /* —— Main chat (Messenger / Telegram / Zalo) —— */
+  .main { display: flex; flex-direction: column; min-width: 0; background: var(--bg-chat); }
   .topbar {
-    padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 8px 14px; background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px; min-height: 60px;
+    box-shadow: var(--shadow);
+    z-index: 2;
   }
-  .topbar .title { font-weight: 600; flex: 1; min-width: 120px; }
-  .topbar .turn { font-size: 12px; color: var(--muted); }
-  button {
-    border: 0; border-radius: 18px; padding: 8px 14px; font-size: 13px; font-weight: 600;
-    cursor: pointer; background: var(--accent); color: #fff;
+  .top-avatars { display: flex; align-items: center; }
+  .top-avatars .t-av {
+    width: 34px; height: 34px; border-radius: 50%; margin-left: -8px;
+    border: 2px solid var(--panel); display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 11px; font-weight: 700;
   }
-  button:disabled { opacity: .45; cursor: not-allowed; }
-  button.secondary { background: var(--panel2); color: var(--text); }
-  button.danger { background: #c0392b; }
+  .top-avatars .t-av:first-child { margin-left: 0; }
+  .top-info { flex: 1; min-width: 0; }
+  .top-info .title { font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .top-info .turn { font-size: 12px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .top-info .turn strong { color: var(--accent); font-weight: 650; }
+  .top-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  button, .btn {
+    border: 0; border-radius: 20px; padding: 8px 14px; font-size: 13px; font-weight: 650;
+    cursor: pointer; background: var(--accent); color: #fff; font-family: inherit;
+    transition: filter .12s, transform .08s;
+  }
+  button:hover:not(:disabled) { filter: brightness(1.06); }
+  button:active:not(:disabled) { transform: scale(.98); }
+  button:disabled { opacity: .42; cursor: not-allowed; }
+  button.secondary, .btn.secondary { background: var(--panel2); color: var(--text); }
+  button.icon {
+    width: 38px; height: 38px; padding: 0; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--panel2); color: var(--text); font-size: 16px;
+  }
 
   .messages {
-    flex: 1; overflow-y: auto; padding: 16px 18px 24px;
-    background: linear-gradient(180deg, #0e1621 0%, #0b1219 100%);
+    flex: 1; overflow-y: auto; padding: 16px 16px 20px;
+    background: var(--wallpaper);
   }
-  .day-sep { text-align: center; color: var(--muted); font-size: 11px; margin: 12px 0; }
-  .row { display: flex; margin: 8px 0; gap: 8px; align-items: flex-end; }
+  .day-sep {
+    display: flex; justify-content: center; margin: 14px 0;
+  }
+  .day-sep span {
+    background: color-mix(in srgb, var(--panel) 88%, transparent);
+    color: var(--muted); font-size: 12px; font-weight: 600;
+    padding: 4px 12px; border-radius: 12px; box-shadow: var(--shadow);
+  }
+  .row {
+    display: flex; margin: 3px 0; gap: 8px; align-items: flex-end;
+    animation: fadeIn .18s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
   .row.me { flex-direction: row-reverse; }
+  .row.sys { justify-content: center; margin: 10px 0; }
   .row .av {
     width: 32px; height: 32px; border-radius: 50%; font-size: 11px; font-weight: 700;
     display: flex; align-items: center; justify-content: center; color: #fff; flex-shrink: 0;
+    box-shadow: var(--shadow);
   }
+  .row.stack .av { visibility: hidden; }
   .bubble {
-    max-width: min(680px, 78%); padding: 8px 12px 6px; border-radius: 14px;
-    background: var(--panel2); position: relative; word-wrap: break-word;
+    max-width: min(640px, 78%); padding: 7px 11px 5px;
+    border-radius: 16px; position: relative; word-wrap: break-word;
+    box-shadow: var(--shadow); background: var(--them-bubble);
   }
-  .row.me .bubble { background: #2b5278; border-bottom-right-radius: 4px; }
-  .row.sys .bubble { background: var(--bubble-sys); max-width: 90%; margin: 0 auto; border-radius: 10px; }
-  .row.sys { justify-content: center; }
-  .b-name { font-size: 12px; font-weight: 700; margin-bottom: 3px; }
-  .b-text { font-size: 14px; line-height: 1.45; white-space: pre-wrap; }
-  .b-meta { font-size: 10px; color: var(--muted); margin-top: 4px; text-align: right; }
-  .b-task { font-size: 10px; color: var(--accent); margin-top: 2px; }
+  .row.me .bubble {
+    background: var(--me-bubble);
+    border-bottom-right-radius: 5px;
+  }
+  html[data-theme="messenger"] .row.me .bubble { color: #fff; }
+  html[data-theme="messenger"] .row.me .b-meta,
+  html[data-theme="messenger"] .row.me .b-task { color: rgba(255,255,255,.78); }
+  html[data-theme="zalo"] .row.me .bubble {
+    border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  }
+  .row:not(.me):not(.sys) .bubble { border-bottom-left-radius: 5px; }
+  .row.sys .bubble {
+    background: var(--sys-bubble); max-width: 92%; border-radius: 12px;
+    text-align: left; box-shadow: none; border: 1px dashed var(--border);
+  }
+  .b-name { font-size: 12px; font-weight: 700; margin-bottom: 2px; }
+  .b-text { font-size: 14.5px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
+  .b-meta {
+    font-size: 10.5px; color: var(--muted); margin-top: 3px;
+    display: flex; justify-content: flex-end; gap: 6px; align-items: center;
+  }
+  .b-task {
+    font-size: 11px; color: var(--accent); margin-top: 3px; font-weight: 600;
+  }
+  .assign-chip {
+    display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 8px;
+    background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent);
+    margin-left: 4px;
+  }
+
+  .typing {
+    display: none; padding: 0 20px 6px; font-size: 12px; color: var(--muted);
+    align-items: center; gap: 8px;
+  }
+  .typing.show { display: flex; }
+  .typing-dots span {
+    display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--muted); margin-right: 3px; animation: bounce 1.2s infinite;
+  }
+  .typing-dots span:nth-child(2) { animation-delay: .15s; }
+  .typing-dots span:nth-child(3) { animation-delay: .3s; }
+  @keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-4px)} }
+
+  .err {
+    color: var(--danger); font-size: 12px; padding: 0 16px 4px; min-height: 16px;
+  }
 
   .composer {
-    padding: 10px 14px; background: var(--panel); border-top: 1px solid var(--border);
-    display: flex; gap: 10px; align-items: flex-end;
+    padding: 10px 12px 12px; background: var(--panel);
+    border-top: 1px solid var(--border);
+    display: flex; gap: 8px; align-items: flex-end;
   }
   .composer textarea {
     flex: 1; resize: none; min-height: 44px; max-height: 140px;
-    background: var(--input); color: var(--text); border: 0; border-radius: 20px;
-    padding: 12px 16px; font-size: 14px; font-family: inherit; outline: none;
+    background: var(--input); color: var(--text); border: 1px solid var(--border);
+    border-radius: 22px; padding: 12px 16px; font-size: 14.5px; font-family: inherit;
+    outline: none; line-height: 1.35;
   }
-  .err { color: #ef9a9a; font-size: 12px; padding: 0 16px 8px; min-height: 18px; }
-  @media (max-width: 800px) {
+  .composer textarea:focus {
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  }
+  .send-btn {
+    width: 44px; height: 44px; border-radius: 50%; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+
+  .rules-bar {
+    display: flex; gap: 8px; flex-wrap: wrap; padding: 6px 14px 0;
+    font-size: 11px; color: var(--muted);
+  }
+  .rules-bar span {
+    background: var(--panel2); padding: 3px 8px; border-radius: 10px;
+  }
+
+  @media (max-width: 860px) {
     .app { grid-template-columns: 1fr; }
     .sidebar { display: none; }
   }
@@ -128,27 +362,58 @@ ROOM_HTML = r"""<!DOCTYPE html>
 <div class="app">
   <aside class="sidebar">
     <div class="side-head">
-      <h1 id="crewName">CrewLab</h1>
-      <div class="goal" id="crewGoal">…</div>
-      <div><span class="badge" id="processBadge">process</span>
-           <span class="badge" id="statusBadge">…</span></div>
+      <div class="brand-row">
+        <div class="brand-logo"><span>CL</span></div>
+        <div class="brand-text">
+          <h1 id="crewName">CrewLab</h1>
+          <div class="sub" id="processBadge">multi-CLI room</div>
+        </div>
+      </div>
+      <div class="goal-box" id="crewGoal">…</div>
+      <div class="theme-row">
+        <button type="button" class="theme-btn active" data-theme="telegram" title="Telegram dark">Telegram</button>
+        <button type="button" class="theme-btn" data-theme="messenger" title="Messenger light">Messenger</button>
+        <button type="button" class="theme-btn" data-theme="zalo" title="Zalo light">Zalo</button>
+      </div>
+      <div class="search">
+        <span style="opacity:.6">🔍</span>
+        <input id="filter" type="search" placeholder="Tìm agent / task…" autocomplete="off"/>
+      </div>
     </div>
+    <div class="section-label">Thành viên · phân công 1 task</div>
     <div class="roster" id="roster"></div>
-    <div class="side-foot" id="foot">Phân công: 1 agent = 1 task · nói lần lượt · đọc full chat</div>
+    <div class="side-foot" id="foot">
+      1 agent = 1 task · nói lần lượt · mỗi lượt đọc full transcript
+    </div>
   </aside>
+
   <main class="main">
     <div class="topbar">
-      <div class="title" id="roomTitle">Chat room</div>
-      <div class="turn" id="turnInfo">—</div>
-      <button class="secondary" id="btnRefresh" title="Refresh">↻</button>
-      <button id="btnNext" title="Agent kế tiếp phát biểu">▶ Next turn</button>
-      <button class="secondary" id="btnDry" title="Mô phỏng lượt (không gọi CLI)">Dry turn</button>
+      <div class="top-avatars" id="topAvatars"></div>
+      <div class="top-info">
+        <div class="title" id="roomTitle">Chat room</div>
+        <div class="turn" id="turnInfo">—</div>
+      </div>
+      <div class="top-actions">
+        <button class="icon secondary" id="btnRefresh" title="Làm mới">↻</button>
+        <button class="secondary" id="btnDry" title="Mô phỏng lượt (không gọi CLI)">Dry</button>
+        <button id="btnNext" title="Agent kế tiếp phát biểu">▶ Next turn</button>
+      </div>
+    </div>
+    <div class="rules-bar">
+      <span id="statusBadge">…</span>
+      <span>📄 Full history mỗi lượt</span>
+      <span>🔒 1 speaker / turn</span>
     </div>
     <div class="messages" id="messages"></div>
+    <div class="typing" id="typing">
+      <div class="typing-dots"><span></span><span></span><span></span></div>
+      <span id="typingText">agent đang soạn…</span>
+    </div>
     <div class="err" id="err"></div>
     <div class="composer">
-      <textarea id="input" rows="1" placeholder="Nhắn như operator… (Enter gửi, Shift+Enter xuống dòng)"></textarea>
-      <button id="btnSend">Gửi</button>
+      <textarea id="input" rows="1" placeholder="Nhắn như operator… Enter gửi · Shift+Enter xuống dòng"></textarea>
+      <button class="send-btn" id="btnSend" title="Gửi">➤</button>
     </div>
   </main>
 </div>
@@ -156,10 +421,39 @@ ROOM_HTML = r"""<!DOCTYPE html>
 const $ = (id) => document.getElementById(id);
 let state = null;
 let autoScroll = true;
+let filterQ = "";
+
+const THEME_KEY = "crewlab-ui-theme";
+function applyTheme(name) {
+  const t = name || "telegram";
+  document.documentElement.setAttribute("data-theme", t);
+  localStorage.setItem(THEME_KEY, t);
+  document.querySelectorAll(".theme-btn").forEach(b => {
+    b.classList.toggle("active", b.dataset.theme === t);
+  });
+}
+applyTheme(localStorage.getItem(THEME_KEY) || "telegram");
+document.querySelectorAll(".theme-btn").forEach(b => {
+  b.addEventListener("click", () => applyTheme(b.dataset.theme));
+});
 
 function initials(id) {
   if (!id) return "?";
-  return String(id).slice(0, 2).toUpperCase();
+  const s = String(id);
+  return s.length <= 2 ? s.toUpperCase() : s.slice(0, 2).toUpperCase();
+}
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[c]));
+}
+function fmtTime(iso) {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso.endsWith("Z") ? iso : iso + "Z");
+    if (isNaN(d.getTime())) return iso.slice(11, 16) || iso;
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  } catch { return iso; }
 }
 
 function renderRoster(s) {
@@ -167,47 +461,82 @@ function renderRoster(s) {
   el.innerHTML = "";
   const next = s.next_speaker;
   const speaking = s.turn_agent;
+  const q = filterQ.toLowerCase();
   (s.assignments || []).forEach(a => {
+    const hay = `${a.id} ${a.role} ${a.task_id} ${a.task_title} ${a.backend}`.toLowerCase();
+    if (q && !hay.includes(q)) return;
     const div = document.createElement("div");
-    div.className = "agent-card" + (a.id === next ? " next" : "") + (a.id === speaking ? " speaking" : "");
+    div.className = "agent-card"
+      + (a.id === next ? " next" : "")
+      + (a.id === speaking ? " speaking" : "");
+    const online = a.backend_available || a.backend === "dry-run" || a.backend === "manual";
+    const dotCls = a.id === speaking ? "busy" : (online ? "on" : "");
     div.innerHTML = `
-      <div class="avatar" style="background:${a.color}">${initials(a.id)}</div>
+      <div class="av-wrap">
+        <div class="avatar" style="background:${a.color}">${initials(a.id)}</div>
+        <span class="dot ${dotCls}"></span>
+      </div>
       <div class="agent-meta">
-        <div class="name">${esc(a.id)} <span class="st ${esc(a.status)}">${esc(a.status)}</span></div>
-        <div class="role">${esc(a.role)} · ${esc(a.backend)}${a.backend_available ? "" : " ⚠"}</div>
-        <div class="task">📋 ${esc(a.task_id)} — ${esc(a.task_title || "")}</div>
+        <div class="name-row">
+          <div class="name">${esc(a.id)}${a.manager ? " ★" : ""}</div>
+          <span class="st ${esc(a.status)}">${esc(a.status)}</span>
+        </div>
+        <div class="role">${esc(a.role)} · ${esc(a.backend)}${online ? "" : " · offline"}</div>
+        <div class="task"><b>Task:</b> ${esc(a.task_id)} — ${esc(a.task_title || "")}</div>
       </div>`;
+    div.title = (a.mission || "") + (a.expected_output ? "\nExpected: " + a.expected_output : "");
+    div.onclick = () => {
+      $("input").value = `@${a.id} `;
+      $("input").focus();
+    };
     el.appendChild(div);
   });
 }
 
-function esc(s) {
-  return String(s ?? "").replace(/[&<>"']/g, c => ({
-    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-  }[c]));
+function renderTopAvatars(s) {
+  const el = $("topAvatars");
+  el.innerHTML = "";
+  (s.assignments || []).slice(0, 5).forEach(a => {
+    const d = document.createElement("div");
+    d.className = "t-av";
+    d.style.background = a.color;
+    d.textContent = initials(a.id);
+    d.title = `${a.id} → ${a.task_id}`;
+    el.appendChild(d);
+  });
 }
 
 function renderMessages(s) {
   const box = $("messages");
-  const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+  const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 90;
   box.innerHTML = "";
   const msgs = s.messages || [];
   if (!msgs.length) {
-    box.innerHTML = '<div class="day-sep">Chưa có tin nhắn — gửi tin hoặc Next turn</div>';
+    box.innerHTML = '<div class="day-sep"><span>Chưa có tin — gửi tin hoặc Next turn</span></div>';
     return;
   }
+  box.innerHTML = '<div class="day-sep"><span>Phòng chat crew · full history</span></div>';
+  let prevAgent = null;
   msgs.forEach(m => {
     const agent = m.agent || "?";
     const isOp = agent === "operator";
     const isSys = agent === "system" || m.kind === "system" || m.kind === "turn" || m.kind === "status";
+    const stack = !isSys && !isOp && agent === prevAgent;
     const row = document.createElement("div");
-    row.className = "row" + (isOp ? " me" : "") + (isSys ? " sys" : "");
+    row.className = "row"
+      + (isOp ? " me" : "")
+      + (isSys ? " sys" : "")
+      + (stack ? " stack" : "");
     const color = m.color || "#636E72";
     const av = isSys ? "" : `<div class="av" style="background:${color}">${initials(agent)}</div>`;
-    const name = isSys ? "" : `<div class="b-name" style="color:${color}">${esc(agent)}${m.role ? " · " + esc(m.role) : ""}</div>`;
-    const task = m.task_id ? `<div class="b-task">task: ${esc(m.task_id)}</div>` : "";
-    row.innerHTML = `${av}<div class="bubble">${name}<div class="b-text">${esc(m.text)}</div>${task}<div class="b-meta">${esc(m.at || "")} · ${esc(m.kind || "message")}</div></div>`;
+    const name = (isSys || isOp || stack) ? ""
+      : `<div class="b-name" style="color:${color}">${esc(agent)}${m.role ? " · " + esc(m.role) : ""}</div>`;
+    const task = m.task_id ? `<div class="b-task">📋 ${esc(m.task_id)}</div>` : "";
+    const kind = m.kind && m.kind !== "message" && m.kind !== "agent"
+      ? `<span class="assign-chip">${esc(m.kind)}</span>` : "";
+    row.innerHTML = `${av}<div class="bubble">${name}<div class="b-text">${esc(m.text)}</div>${task}<div class="b-meta"><span>${esc(fmtTime(m.at))}${kind}</span></div></div>`;
     box.appendChild(row);
+    prevAgent = isSys ? null : agent;
   });
   if (autoScroll || nearBottom) box.scrollTop = box.scrollHeight;
 }
@@ -216,19 +545,28 @@ function render(s) {
   state = s;
   $("crewName").textContent = s.crew || "CrewLab";
   $("crewGoal").textContent = s.goal || "";
-  $("processBadge").textContent = "process: " + (s.process || "?");
+  $("processBadge").textContent = "process · " + (s.process || "?");
   const sb = $("statusBadge");
-  if (s.speaking) { sb.textContent = "🎙️ speaking"; sb.className = "badge busy"; }
-  else if (s.complete) { sb.textContent = "✅ complete"; sb.className = "badge ok"; }
-  else { sb.textContent = (s.message_count || 0) + " tin"; sb.className = "badge"; }
-  $("roomTitle").textContent = (s.crew || "Room") + " · multi-CLI chat";
-  $("turnInfo").textContent = s.next_speaker
-    ? ("Lượt kế: " + s.next_speaker + (s.turn_order && s.turn_order.length ? " · hàng đợi: " + s.turn_order.join(" → ") : ""))
-    : (s.complete ? "Hoàn thành dự án" : "Không còn agent sẵn sàng");
+  if (s.speaking) { sb.textContent = "🎙️ Agent đang nói"; }
+  else if (s.complete) { sb.textContent = "✅ Project complete"; }
+  else { sb.textContent = `💬 ${(s.message_count || 0)} tin nhắn`; }
+  $("roomTitle").textContent = (s.crew || "Room") + " · multi-CLI";
+  const queue = (s.turn_order || []).join(" → ");
+  $("turnInfo").innerHTML = s.next_speaker
+    ? `Lượt kế: <strong>${esc(s.next_speaker)}</strong>` + (queue ? ` · hàng đợi ${esc(queue)}` : "")
+    : (s.complete ? "Đã ship — không còn task mở" : "Không còn agent sẵn sàng");
   $("btnNext").disabled = !!s.speaking || !!s.complete || !s.next_speaker;
   $("btnDry").disabled = !!s.speaking || !!s.complete || !s.next_speaker;
   $("err").textContent = s.last_error || "";
-  $("foot").textContent = (s.project_dir || "") + " · full transcript cho mọi agent";
+  $("foot").textContent = (s.project_dir || "") + " · full transcript mỗi agent";
+  const typing = $("typing");
+  if (s.speaking && s.turn_agent) {
+    typing.classList.add("show");
+    $("typingText").textContent = s.turn_agent + " đang soạn…";
+  } else {
+    typing.classList.remove("show");
+  }
+  renderTopAvatars(s);
   renderRoster(s);
   renderMessages(s);
 }
@@ -239,7 +577,6 @@ async function api(path, opts) {
   if (!r.ok) throw new Error(data.error || r.statusText || "request failed");
   return data;
 }
-
 async function refresh() {
   try {
     const s = await api("/api/state");
@@ -248,7 +585,6 @@ async function refresh() {
     $("err").textContent = String(e.message || e);
   }
 }
-
 async function send() {
   const ta = $("input");
   const text = ta.value.trim();
@@ -265,11 +601,12 @@ async function send() {
     $("err").textContent = String(e.message || e);
   }
 }
-
 async function nextTurn(dry) {
   $("btnNext").disabled = true;
   $("btnDry").disabled = true;
   $("err").textContent = dry ? "Dry turn…" : "Đang gọi agent CLI…";
+  $("typing").classList.add("show");
+  $("typingText").textContent = dry ? "dry-run…" : "đang gọi CLI…";
   try {
     await api("/api/speak", {
       method: "POST",
@@ -290,9 +627,13 @@ $("btnDry").onclick = () => nextTurn(true);
 $("input").addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
 });
+$("filter").addEventListener("input", (e) => {
+  filterQ = e.target.value || "";
+  if (state) renderRoster(state);
+});
 $("messages").addEventListener("scroll", () => {
   const box = $("messages");
-  autoScroll = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+  autoScroll = box.scrollHeight - box.scrollTop - box.clientHeight < 90;
 });
 
 refresh();
@@ -331,7 +672,6 @@ def _read_json(handler: BaseHTTPRequestHandler) -> dict[str, Any]:
 def make_handler() -> type[BaseHTTPRequestHandler]:
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, fmt: str, *args: Any) -> None:
-            # quiet default access log noise; keep errors
             if args and str(args[1]).startswith("5"):
                 super().log_message(fmt, *args)
 
@@ -378,8 +718,6 @@ def make_handler() -> type[BaseHTTPRequestHandler]:
                         return
                     try:
                         dry = bool(data.get("dry_run"))
-                        # dry-run in UI auto-marks task done so queue advances demo-friendly;
-                        # live CLI turns only auto_complete when client asks.
                         auto = bool(data.get("auto_complete")) or dry
                         out = room.speak(
                             agent_id=data.get("agent") or None,
@@ -425,6 +763,7 @@ def serve_room(
     print(f"CrewLab chat UI: {url}")
     print(f"  crew: {room.spec.get('name')}")
     print(f"  dir:  {room.project_dir}")
+    print("  themes: Telegram | Messenger | Zalo (switch in UI)")
     print("  Open in browser. Ctrl+C to stop.")
     if open_browser:
         try:
