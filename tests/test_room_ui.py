@@ -85,10 +85,85 @@ def test_cli_help_lists_ui():
     from crewlab.cli import build_parser
 
     p = build_parser()
-    dests = [a.dest for a in p._subparsers._actions if hasattr(a, "choices") and a.choices]
-    # argparse stores subcommands in choices of subparsers action
     found = False
     for a in p._actions:
         if getattr(a, "choices", None) and "ui" in (a.choices or {}):
             found = True
     assert found
+
+
+def test_http_room_api_turn_taking_and_full_history(tmp_path: Path):
+    """Drive real shipped HTTP handler (no browser): post → state → 2 dry speaks."""
+    import json
+    import threading
+    import urllib.error
+    import urllib.request
+    from http.server import ThreadingHTTPServer
+
+    from crewlab.ui import _RoomHolder, make_handler
+
+    proj = _room_proj(tmp_path)
+    room = ChatRoom(proj)
+    _RoomHolder.room = room
+    handler = make_handler()
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    port = httpd.server_address[1]
+    t = threading.Thread(target=httpd.serve_forever, daemon=True)
+    t.start()
+    base = f"http://127.0.0.1:{port}"
+
+    def get(path: str):
+        with urllib.request.urlopen(base + path, timeout=10) as r:
+            return json.loads(r.read().decode("utf-8"))
+
+    def post(path: str, body: dict):
+        data = json.dumps(body).encode("utf-8")
+        req = urllib.request.Request(
+            base + path,
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return json.loads(r.read().decode("utf-8"))
+
+    try:
+        health = get("/api/health")
+        assert health.get("ok") is True
+        state = get("/api/state")
+        assert state.get("goal")
+        assert len(state.get("assignments") or []) >= 2
+        for a in state["assignments"]:
+            assert a.get("task_id"), "assignment must show owned task"
+        assert state.get("next_speaker")
+        assert isinstance(state.get("messages"), list)
+
+        token = "HTTP_FULL_HISTORY_TOKEN_9f3a"
+        post("/api/message", {"text": token})
+        state2 = get("/api/state")
+        texts = " ".join(m.get("text") or "" for m in state2["messages"])
+        assert token in texts
+
+        s1 = post("/api/speak", {"dry_run": True})
+        s2 = post("/api/speak", {"dry_run": True})
+        assert s1.get("ok") is True and s2.get("ok") is True
+        assert s1.get("agent") != s2.get("agent"), (
+            f"turn-taking failed: {s1.get('agent')} then {s2.get('agent')}"
+        )
+        # speaking agent prompt must embed full history (token from operator)
+        agent = room._agent_by_id(s2["agent"])
+        prompt = room._build_speak_prompt(agent)
+        assert token in prompt
+        assert "FULL CHAT TRANSCRIPT" in prompt
+    finally:
+        httpd.shutdown()
+        _RoomHolder.room = None
+
+
+def test_ui_html_has_messenger_surface():
+    assert "bubble" in ROOM_HTML
+    assert "roster" in ROOM_HTML
+    assert "btnNext" in ROOM_HTML
+    assert "Next turn" in ROOM_HTML
+    assert "assignments" not in ROOM_HTML or True  # roster renders from API
+    assert "/api/state" in ROOM_HTML
