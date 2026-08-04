@@ -216,6 +216,27 @@ def test_theme_tokens_match_brand_chrome():
     assert "crewlab-ui-theme" in ROOM_HTML
 
 
+def test_ui_responsive_drawer_and_breakpoints():
+    """Mobile drawer + safe-area + breakpoints ship in ROOM_HTML (no separate CSS file)."""
+    html = ROOM_HTML
+    assert "viewport-fit=cover" in html
+    assert "100dvh" in html
+    assert "side-backdrop" in html or "sideBackdrop" in html
+    assert "btnOpenSide" in html
+    assert "btnCloseSide" in html
+    assert "side-open" in html
+    assert "setSideOpen" in html or "openSide" in html
+    assert "max-width: 860px" in html
+    assert "max-width: 480px" in html
+    assert "safe-area-inset" in html
+    assert "nav-menu" in html
+    # drawer not permanently display:none on mobile (must remain usable)
+    assert "body.side-open .sidebar" in html
+    assert "translateX" in html
+    # touch-friendly iOS font size on composer
+    assert "font-size: 16px" in html
+
+
 def test_cli_real_user_lifecycle_dry(tmp_path):
     """Drive shipped main() end-to-end like an operator (init → speak)."""
     proj = tmp_path / "life"

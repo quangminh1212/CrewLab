@@ -137,7 +137,9 @@ _ROOM_HTML_HEAD = r"""<!DOCTYPE html>
 <html lang="vi" data-theme="telegram">
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<meta name="theme-color" content="#0e1621"/>
+<meta name="mobile-web-app-capable" content="yes"/>
 <title>CrewLab Chat</title>
 <style>
   /* —— Theme tokens (Telegram / Messenger / Zalo) —— */
@@ -150,15 +152,30 @@ _ROOM_HTML_BODY = r"""
     font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Roboto, sans-serif;
     background: var(--bg); color: var(--text);
     -webkit-font-smoothing: antialiased;
+    overflow: hidden;
   }
   .app {
     display: grid;
-    grid-template-columns: 340px 1fr;
+    grid-template-columns: minmax(280px, 340px) 1fr;
     height: 100vh;
+    height: 100dvh;
     max-width: 1400px;
     margin: 0 auto;
     box-shadow: 0 0 40px rgba(0,0,0,.25);
+    position: relative;
   }
+  /* Mobile chrome: menu / close (hidden on desktop) */
+  .nav-menu, .nav-close, .side-backdrop {
+    display: none;
+  }
+  .nav-menu, .nav-close {
+    width: 40px; height: 40px; padding: 0; border-radius: 50%;
+    border: 0; background: var(--panel2); color: var(--text);
+    font-size: 18px; font-weight: 700; cursor: pointer;
+    flex-shrink: 0;
+    align-items: center; justify-content: center;
+  }
+  .nav-menu:hover, .nav-close:hover { filter: brightness(1.06); }
 
   /* —— Sidebar (Telegram / Zalo chat list) —— */
   .sidebar {
@@ -284,6 +301,8 @@ _ROOM_HTML_BODY = r"""
   .top-info .turn { font-size: 12px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .top-info .turn strong { color: var(--accent); font-weight: 650; }
   .top-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .top-actions .btn-label-short,
+  .top-actions .btn-label-icon { display: none; }
   button, .btn {
     border: 0; border-radius: 20px; padding: 8px 14px; font-size: 13px; font-weight: 650;
     cursor: pointer; background: var(--accent); color: #fff; font-family: inherit;
@@ -413,15 +432,156 @@ _ROOM_HTML_BODY = r"""
     background: var(--panel2); padding: 3px 8px; border-radius: 10px;
   }
 
+  /* —— Responsive: tablet —— */
+  @media (max-width: 1100px) {
+    .app {
+      grid-template-columns: minmax(240px, 300px) 1fr;
+      max-width: none;
+      box-shadow: none;
+    }
+    .bubble { max-width: min(560px, 82%); }
+  }
+
+  /* —— Responsive: mobile / small tablet (Telegram-style drawer) —— */
   @media (max-width: 860px) {
-    .app { grid-template-columns: 1fr; }
-    .sidebar { display: none; }
+    .app {
+      grid-template-columns: 1fr;
+      height: 100vh;
+      height: 100dvh;
+      max-width: none;
+      box-shadow: none;
+    }
+    .side-backdrop {
+      display: block;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.45);
+      z-index: 40;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s ease;
+    }
+    body.side-open .side-backdrop {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .sidebar {
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      width: min(88vw, 320px);
+      max-width: 320px;
+      z-index: 50;
+      transform: translateX(-105%);
+      transition: transform .22s ease;
+      box-shadow: 4px 0 24px rgba(0,0,0,.28);
+      border-right: 1px solid var(--border);
+      padding-top: env(safe-area-inset-top, 0);
+      padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+    body.side-open .sidebar {
+      transform: translateX(0);
+    }
+    .nav-menu {
+      display: inline-flex;
+    }
+    .nav-close {
+      display: inline-flex;
+      margin-left: auto;
+    }
+    .brand-row { gap: 8px; }
+    .topbar {
+      padding: 6px 10px;
+      min-height: 54px;
+      gap: 8px;
+      padding-top: max(6px, env(safe-area-inset-top, 0px));
+    }
+    .top-avatars .t-av { width: 30px; height: 30px; font-size: 10px; }
+    .top-info .title { font-size: 14px; }
+    .top-info .turn { font-size: 11px; }
+    .top-actions { gap: 4px; flex-wrap: nowrap; }
+    .top-actions button {
+      padding: 7px 10px; font-size: 12px;
+    }
+    .top-actions #btnNext {
+      padding: 7px 12px;
+    }
+    .top-actions .btn-label-full { display: none; }
+    .top-actions .btn-label-short { display: inline; }
+    .rules-bar {
+      padding: 4px 10px 0;
+      gap: 6px;
+      font-size: 10px;
+      overflow-x: auto;
+      flex-wrap: nowrap;
+      -webkit-overflow-scrolling: touch;
+    }
+    .rules-bar span {
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .rules-bar .hide-sm { display: none; }
+    .messages {
+      padding: 10px 10px 14px;
+      padding-left: max(10px, env(safe-area-inset-left, 0px));
+      padding-right: max(10px, env(safe-area-inset-right, 0px));
+    }
+    .bubble {
+      max-width: min(100%, 88%);
+      padding: 6px 10px 4px;
+      font-size: 14px;
+    }
+    .b-text { font-size: 14px; }
+    .row .av { width: 28px; height: 28px; font-size: 10px; }
+    .row.sys .bubble { max-width: 100%; font-size: 12.5px; }
+    .composer {
+      padding: 8px 10px max(10px, env(safe-area-inset-bottom, 0px));
+      gap: 6px;
+    }
+    .composer textarea {
+      min-height: 40px;
+      max-height: 120px;
+      padding: 10px 14px;
+      font-size: 16px; /* avoid iOS zoom on focus */
+      border-radius: 20px;
+    }
+    .send-btn { width: 42px; height: 42px; }
+    .theme-btn { min-width: 0; flex: 1; font-size: 10px; padding: 6px 4px; }
+    .avatar { width: 44px; height: 44px; font-size: 14px; }
+    .agent-card { padding: 8px; }
+    .typing { padding: 0 12px 4px; }
+    .err { padding: 0 10px 4px; }
+  }
+
+  @media (max-width: 480px) {
+    .top-avatars { display: none; }
+    .top-actions #btnDry { display: none; }
+    .top-actions #btnNext {
+      border-radius: 50%;
+      width: 40px; height: 40px; padding: 0;
+      font-size: 14px;
+    }
+    .top-actions #btnNext .btn-label-short { display: none; }
+    .top-actions #btnNext .btn-label-icon { display: inline; }
+    .goal-box { max-height: 3.2em; font-size: 11px; }
+    .side-foot { font-size: 10px; }
+  }
+
+  @media (min-width: 861px) {
+    .top-actions .btn-label-short { display: none; }
+    .top-actions .btn-label-icon { display: none; }
+    body.side-open .sidebar { transform: none; }
+  }
+
+  /* Prefer reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    .sidebar, .side-backdrop, .row { transition: none; animation: none; }
   }
 </style>
 </head>
 <body>
+<div class="side-backdrop" id="sideBackdrop" aria-hidden="true"></div>
 <div class="app">
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar" aria-label="Danh sách agent">
     <div class="side-head">
       <div class="brand-row">
         <div class="brand-logo"><span>CL</span></div>
@@ -429,6 +589,7 @@ _ROOM_HTML_BODY = r"""
           <h1 id="crewName">CrewLab</h1>
           <div class="sub" id="processBadge">multi-CLI room</div>
         </div>
+        <button type="button" class="nav-close" id="btnCloseSide" title="Đóng danh sách" aria-label="Đóng">✕</button>
       </div>
       <div class="goal-box" id="crewGoal">…</div>
       <div class="theme-row">
@@ -450,6 +611,7 @@ _ROOM_HTML_BODY = r"""
 
   <main class="main">
     <div class="topbar">
+      <button type="button" class="nav-menu" id="btnOpenSide" title="Danh sách agent" aria-label="Mở danh sách" aria-controls="sidebar" aria-expanded="false">☰</button>
       <div class="top-avatars" id="topAvatars"></div>
       <div class="top-info">
         <div class="title" id="roomTitle">Chat room</div>
@@ -458,13 +620,17 @@ _ROOM_HTML_BODY = r"""
       <div class="top-actions">
         <button class="icon secondary" id="btnRefresh" title="Làm mới">↻</button>
         <button class="secondary" id="btnDry" title="Mô phỏng lượt (không gọi CLI)">Dry</button>
-        <button id="btnNext" title="Agent kế tiếp phát biểu">▶ Next turn</button>
+        <button id="btnNext" title="Agent kế tiếp phát biểu">
+          <span class="btn-label-full">▶ Next turn</span>
+          <span class="btn-label-short">Next</span>
+          <span class="btn-label-icon">▶</span>
+        </button>
       </div>
     </div>
     <div class="rules-bar">
       <span id="statusBadge">…</span>
-      <span>📄 Full history mỗi lượt</span>
-      <span>🔒 1 speaker / turn</span>
+      <span class="hide-sm">📄 Full history mỗi lượt</span>
+      <span class="hide-sm">🔒 1 speaker / turn</span>
     </div>
     <div class="messages" id="messages"></div>
     <div class="typing" id="typing">
@@ -485,6 +651,19 @@ let autoScroll = true;
 let filterQ = "";
 
 const THEME_KEY = "crewlab-ui-theme";
+const MOBILE_MQ = window.matchMedia("(max-width: 860px)");
+
+function setSideOpen(open) {
+  document.body.classList.toggle("side-open", !!open);
+  const btn = $("btnOpenSide");
+  if (btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
+  const bd = $("sideBackdrop");
+  if (bd) bd.setAttribute("aria-hidden", open ? "false" : "true");
+}
+function openSide() { setSideOpen(true); }
+function closeSide() { setSideOpen(false); }
+function toggleSide() { setSideOpen(!document.body.classList.contains("side-open")); }
+
 function applyTheme(name) {
   const t = name || "telegram";
   document.documentElement.setAttribute("data-theme", t);
@@ -492,10 +671,23 @@ function applyTheme(name) {
   document.querySelectorAll(".theme-btn").forEach(b => {
     b.classList.toggle("active", b.dataset.theme === t);
   });
+  // Sync browser chrome color with theme bg
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) {
+    const bg = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim();
+    if (bg) meta.setAttribute("content", bg);
+  }
 }
 applyTheme(localStorage.getItem(THEME_KEY) || "telegram");
 document.querySelectorAll(".theme-btn").forEach(b => {
   b.addEventListener("click", () => applyTheme(b.dataset.theme));
+});
+$("btnOpenSide") && $("btnOpenSide").addEventListener("click", toggleSide);
+$("btnCloseSide") && $("btnCloseSide").addEventListener("click", closeSide);
+$("sideBackdrop") && $("sideBackdrop").addEventListener("click", closeSide);
+MOBILE_MQ.addEventListener("change", (e) => { if (!e.matches) closeSide(); });
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && document.body.classList.contains("side-open")) closeSide();
 });
 
 function initials(id) {
@@ -549,6 +741,7 @@ function renderRoster(s) {
     div.onclick = () => {
       $("input").value = `@${a.id} `;
       $("input").focus();
+      if (MOBILE_MQ.matches) closeSide();
     };
     el.appendChild(div);
   });
