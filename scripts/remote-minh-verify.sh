@@ -1,13 +1,31 @@
 #!/usr/bin/env bash
 # Fast verify: no interactive CLI --version (can hang npm.cmd on MSYS)
 set -u
-export PATH="/c/Users/bachq/AppData/Local/hermes/hermes-agent/venv/Scripts:/c/Users/bachq/AppData/Local/hermes/bin:/c/Users/bachq/AppData/Roaming/npm:/c/Users/bachq/AppData/Local/hermes/node:/c/Users/bachq/AppData/Local/hermes/git/cmd:$PATH"
-HERMES_PY="/c/Users/bachq/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe"
+export PATH="${HOME}/AppData/Local/hermes/hermes-agent/venv/Scripts:${HOME}/AppData/Local/hermes/bin:${HOME}/AppData/Roaming/npm:${HOME}/AppData/Local/hermes/node:${HOME}/AppData/Local/hermes/git/cmd:/c/Users/bachq/AppData/Local/hermes/hermes-agent/venv/Scripts:$PATH"
+resolve_crewlab_py() {
+  local cands=(
+    "/c/Dev/CrewLab/.venv/Scripts/python.exe"
+    "${HOME}/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe"
+    "/c/Users/Minh/AppData/Roaming/uv/python/cpython-3.11.15-windows-x86_64-none/python.exe"
+    "/c/Users/bachq/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe"
+  )
+  local c
+  for c in "${cands[@]}"; do
+    if [ -f "$c" ] && "$c" -c "import sys" >/dev/null 2>&1; then
+      echo "$c"
+      return 0
+    fi
+  done
+  command -v python 2>/dev/null || echo "python"
+}
+HERMES_PY="$(resolve_crewlab_py)"
+export CREWLAB_PY="$HERMES_PY"
 cd /c/Dev/CrewLab
 LOG=runs/minh-verify.log
 mkdir -p runs
 {
 echo "=== verify $(date -Iseconds) ==="
+echo "=== PY $HERMES_PY ==="
 echo "=== files ==="
 ls -la /c/Users/bachq/AppData/Roaming/npm/ | head -40
 echo "=== command -v ==="
@@ -49,7 +67,17 @@ try:
                 subprocess.run(f"taskkill /F /PID {pid}", shell=True, capture_output=True)
 except Exception as e:
     print("kill", e)
-py = r"C:\Users\bachq\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe"
+import os
+py = os.environ.get("CREWLAB_PY") or r"C:\Dev\CrewLab\.venv\Scripts\python.exe"
+if not os.path.isfile(py):
+    for cand in (
+        os.path.expandvars(r"%USERPROFILE%\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe"),
+        r"C:\Users\Minh\AppData\Roaming\uv\python\cpython-3.11.15-windows-x86_64-none\python.exe",
+        r"C:\Users\bachq\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe",
+    ):
+        if os.path.isfile(cand):
+            py = cand
+            break
 wd = r"C:\Dev\CrewLab"
 log = Path(wd) / "runs"
 log.mkdir(exist_ok=True)

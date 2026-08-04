@@ -1,12 +1,30 @@
 #!/usr/bin/env bash
 # Finish CLI PATH shims + full CrewLab tests on Minh (no long winget).
 set -u
-export PATH="/c/Users/bachq/AppData/Local/hermes/hermes-agent/venv/Scripts:/c/Users/bachq/AppData/Local/hermes/bin:/c/Users/bachq/AppData/Roaming/npm:/c/Users/bachq/AppData/Roaming/npm/bin:/c/Users/bachq/AppData/Local/hermes/node:/c/Users/bachq/AppData/Local/hermes/git/cmd:$PATH"
-HERMES_PY="/c/Users/bachq/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe"
+export PATH="${HOME}/AppData/Local/hermes/hermes-agent/venv/Scripts:${HOME}/AppData/Local/hermes/bin:${HOME}/AppData/Roaming/npm:${HOME}/AppData/Roaming/npm/bin:${HOME}/AppData/Local/hermes/node:${HOME}/AppData/Local/hermes/git/cmd:/c/Users/bachq/AppData/Local/hermes/hermes-agent/venv/Scripts:/c/Users/bachq/AppData/Local/hermes/bin:/c/Users/bachq/AppData/Roaming/npm:$PATH"
+resolve_crewlab_py() {
+  local cands=(
+    "/c/Dev/CrewLab/.venv/Scripts/python.exe"
+    "${HOME}/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe"
+    "/c/Users/Minh/AppData/Roaming/uv/python/cpython-3.11.15-windows-x86_64-none/python.exe"
+    "/c/Users/bachq/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe"
+  )
+  local c
+  for c in "${cands[@]}"; do
+    if [ -f "$c" ] && "$c" -c "import sys" >/dev/null 2>&1; then
+      echo "$c"
+      return 0
+    fi
+  done
+  command -v python 2>/dev/null || echo "python"
+}
+HERMES_PY="$(resolve_crewlab_py)"
+export CREWLAB_PY="$HERMES_PY"
 LOG=/c/Dev/CrewLab/runs/minh-finish-test.log
-mkdir -p /c/Dev/CrewLab/runs /c/Users/bachq/AppData/Local/hermes/bin
+mkdir -p /c/Dev/CrewLab/runs "${HOME}/AppData/Local/hermes/bin" /c/Users/bachq/AppData/Local/hermes/bin
 exec > >(tee -a "$LOG") 2>&1
 echo "=== finish $(date -Iseconds) ==="
+echo "=== PY $HERMES_PY ==="
 
 # Ensure shims
 HERMES_BIN=/c/Users/bachq/AppData/Local/hermes/bin

@@ -1,15 +1,33 @@
 #!/usr/bin/env bash
 # ALL tests run ON Minh only. View UI from browser: http://192.168.1.2:8765/
 set -u
-export PATH="/c/Users/bachq/AppData/Local/hermes/hermes-agent/venv/Scripts:/c/Users/bachq/AppData/Local/hermes/bin:/c/Users/bachq/AppData/Roaming/npm:/c/Users/bachq/AppData/Local/hermes/node:/c/Users/bachq/AppData/Local/Programs/cursor/resources/app/bin:$PATH"
+export PATH="${HOME}/AppData/Local/hermes/hermes-agent/venv/Scripts:${HOME}/AppData/Local/hermes/bin:${HOME}/AppData/Roaming/npm:${HOME}/AppData/Local/hermes/node:${HOME}/AppData/Local/Programs/cursor/resources/app/bin:/c/Users/bachq/AppData/Local/hermes/hermes-agent/venv/Scripts:/c/Users/bachq/AppData/Local/hermes/bin:$PATH"
 export PYTHONPATH=/c/Dev/CrewLab
-PY=/c/Users/bachq/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe
+resolve_crewlab_py() {
+  local cands=(
+    "/c/Dev/CrewLab/.venv/Scripts/python.exe"
+    "${HOME}/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe"
+    "/c/Users/Minh/AppData/Roaming/uv/python/cpython-3.11.15-windows-x86_64-none/python.exe"
+    "/c/Users/bachq/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe"
+  )
+  local c
+  for c in "${cands[@]}"; do
+    if [ -f "$c" ] && "$c" -c "import sys" >/dev/null 2>&1; then
+      echo "$c"
+      return 0
+    fi
+  done
+  command -v python 2>/dev/null || echo "python"
+}
+PY="$(resolve_crewlab_py)"
+export CREWLAB_PY="$PY"
 cd /c/Dev/CrewLab
 mkdir -p runs
 LOG=runs/minh-full-remote-test.log
 exec > >(tee "$LOG") 2>&1
 
 echo "=== HOST $(hostname) $(whoami) $(date -Iseconds) ==="
+echo "=== PY $PY ==="
 echo "=== CLI which ==="
 for c in hermes grok codex claude opencode cursor node npm git; do
   if command -v "$c" >/dev/null 2>&1; then
@@ -57,7 +75,17 @@ try:
 except Exception as e:
     print("kill", e)
 
-py = r"C:\Users\bachq\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe"
+import os
+py = os.environ.get("CREWLAB_PY") or r"C:\Dev\CrewLab\.venv\Scripts\python.exe"
+if not os.path.isfile(py):
+    for cand in (
+        os.path.expandvars(r"%USERPROFILE%\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe"),
+        r"C:\Users\Minh\AppData\Roaming\uv\python\cpython-3.11.15-windows-x86_64-none\python.exe",
+        r"C:\Users\bachq\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe",
+    ):
+        if os.path.isfile(cand):
+            py = cand
+            break
 wd = r"C:\Dev\CrewLab"
 log = Path(wd) / "runs"
 log.mkdir(parents=True, exist_ok=True)
