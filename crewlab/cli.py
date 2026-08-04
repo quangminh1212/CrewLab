@@ -113,7 +113,14 @@ def _cmd_task(args: argparse.Namespace) -> int:
         print("need --task or --agent", file=sys.stderr)
         return 1
     try:
-        set_task_status(state, task_id, args.status, result=args.result)
+        set_task_status(
+            state,
+            task_id,
+            args.status,
+            result=args.result,
+            spec=spec,
+            enforce_deps=True,
+        )
     except Exception as e:
         print(f"error: {e}", file=sys.stderr)
         return 1

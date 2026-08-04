@@ -2,97 +2,160 @@
 
 Each agent may bind to a different runtime (Hermes, Grok, Codex, Claude Code,
 OpenClaw, OpenCode, manual, or raw shell). CrewLab orchestrates; backends execute.
+
+Headless command shapes follow public CLIs (deep-research 2026-08):
+  claude  -p / --print
+  codex   exec
+  hermes  chat -q
+  openclaw agent exec --message-file
+  grok    -p / --single --cwd
 """
 
 from __future__ import annotations
 
 import os
+import shlex
 import shutil
 import subprocess
-from dataclasses import dataclass, field
+import sys
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 
 @dataclass(frozen=True)
 class BackendSpec:
     id: str
     title: str
-    # Shell template; placeholders: {prompt_file} {prompt} {cwd} {agent_id} {task_id} {goal} {result_file}
-    command: str
-    detect: tuple[str, ...] = ()  # PATH names to probe
+    detect: tuple[str, ...] = ()
     notes: str = ""
-    supports_prompt_file: bool = True
+    # Human-readable example (docs only)
+    example: str = ""
 
 
-# Built-in backends. command may be overridden per-agent via agents[].cli / backend_cmd.
+def _argv_hermes(prompt_file: Path, cwd: Path, **_: Any) -> list[str]:
+    text = prompt_file.read_text(encoding="utf-8")
+    return ["hermes", "chat", "-q", text]
+
+
+def _argv_grok(prompt_file: Path, cwd: Path, **_: Any) -> list[str]:
+    text = prompt_file.read_text(encoding="utf-8")
+    return ["grok", "-p", text, "--cwd", str(cwd), "--output-format", "plain"]
+
+
+def _argv_codex(prompt_file: Path, cwd: Path, **_: Any) -> list[str]:
+    text = prompt_file.read_text(encoding="utf-8")
+    return ["codex", "exec", "--cd", str(cwd), text]
+
+
+def _argv_claude(prompt_file: Path, cwd: Path, **_: Any) -> list[str]:
+    text = prompt_file.read_text(encoding="utf-8")
+    # claude -p accepts prompt; CWD is workspace
+    return ["claude", "-p", text]
+
+
+def _argv_openclaw(prompt_file: Path, cwd: Path, **_: Any) -> list[str]:
+    return [
+        "openclaw",
+        "agent",
+        "exec",
+        "--message-file",
+        str(prompt_file),
+        "--cwd",
+        str(cwd),
+        "--json",
+    ]
+
+
+def _argv_opencode(prompt_file: Path, cwd: Path, **_: Any) -> list[str]:
+    text = prompt_file.read_text(encoding="utf-8")
+    return ["opencode", "run", text]
+
+
+def _argv_cursor(prompt_file: Path, cwd: Path, **_: Any) -> list[str]:
+    text = prompt_file.read_text(encoding="utf-8")
+    binary = "cursor-agent" if shutil.which("cursor-agent") else "cursor"
+    return [binary, "-p", text]
+
+
+ARGV_BUILDERS: dict[str, Callable[..., list[str]]] = {
+    "hermes": _argv_hermes,
+    "grok": _argv_grok,
+    "codex": _argv_codex,
+    "claude": _argv_claude,
+    "openclaw": _argv_openclaw,
+    "opencode": _argv_opencode,
+    "cursor": _argv_cursor,
+}
+
+
 BUILTIN_BACKENDS: dict[str, BackendSpec] = {
     "manual": BackendSpec(
         id="manual",
         title="Manual / human-in-the-loop",
-        command="",
         notes="Writes prompt only; operator completes and marks task done.",
+        example="(no process)",
     ),
     "dry-run": BackendSpec(
         id="dry-run",
         title="Dry-run (no process)",
-        command="",
         notes="Always no-op; used by tests and plan previews.",
+        example="(no process)",
     ),
     "shell": BackendSpec(
         id="shell",
         title="Raw shell command",
-        command="{cli}",
-        notes="Requires agents[].cli as full command template.",
+        notes="Requires agents[].cli as full command template ({prompt_file}, {cwd}, …).",
+        example='agents[].cli: \'my-agent --file "{prompt_file}"\'',
     ),
     "hermes": BackendSpec(
         id="hermes",
         title="Hermes Agent CLI",
-        command='hermes chat -q "$(Get-Content -Raw \'{prompt_file}\')"',
         detect=("hermes",),
-        notes="Uses Hermes CLI if on PATH; else treat as manual with prompt artifact.",
+        notes="One-shot: hermes chat -q <prompt>",
+        example="hermes chat -q <prompt>",
     ),
     "grok": BackendSpec(
         id="grok",
-        title="Grok / Grok CLI",
-        command='grok -p "$(Get-Content -Raw \'{prompt_file}\')"',
+        title="Grok Build CLI",
         detect=("grok",),
-        notes="Grok Build TUI CLI when available.",
+        notes="Headless: grok -p <prompt> --cwd <dir> --output-format plain",
+        example="grok -p <prompt> --cwd .",
     ),
     "codex": BackendSpec(
         id="codex",
         title="OpenAI Codex CLI",
-        command='codex exec -- "$(Get-Content -Raw \'{prompt_file}\')"',
         detect=("codex",),
-        notes="OpenAI Codex coding agent CLI.",
+        notes="Non-interactive: codex exec --cd <dir> <prompt>",
+        example="codex exec --cd . <prompt>",
     ),
     "claude": BackendSpec(
         id="claude",
         title="Claude Code CLI",
-        command='claude -p "$(Get-Content -Raw \'{prompt_file}\')"',
         detect=("claude",),
-        notes="Anthropic Claude Code.",
+        notes="Headless: claude -p <prompt> (workspace = process cwd)",
+        example="claude -p <prompt>",
     ),
     "openclaw": BackendSpec(
         id="openclaw",
         title="OpenClaw CLI",
-        command='openclaw run --prompt-file "{prompt_file}"',
         detect=("openclaw",),
-        notes="OpenClaw department bridge / local agent host.",
+        notes="Headless: openclaw agent exec --message-file <path> --cwd <dir> --json",
+        example="openclaw agent exec --message-file prompt.md --cwd .",
     ),
     "opencode": BackendSpec(
         id="opencode",
         title="OpenCode CLI",
-        command='opencode run "$(Get-Content -Raw \'{prompt_file}\')"',
         detect=("opencode",),
-        notes="OpenCode agent CLI when installed.",
+        notes="opencode run <prompt> when installed.",
+        example="opencode run <prompt>",
     ),
     "cursor": BackendSpec(
         id="cursor",
         title="Cursor agent CLI",
-        command='cursor-agent -p "$(Get-Content -Raw \'{prompt_file}\')"',
         detect=("cursor-agent", "cursor"),
-        notes="Cursor agent if CLI present; else manual.",
+        notes="cursor-agent -p <prompt> if present.",
+        example="cursor-agent -p <prompt>",
     ),
 }
 
@@ -103,10 +166,12 @@ ALLOWED_BACKENDS = frozenset(BUILTIN_BACKENDS.keys()) | frozenset({"custom"})
 @dataclass
 class BackendResolve:
     backend_id: str
-    command: str
+    command: str  # display string
     available: bool
     reason: str = ""
     detect_hit: str | None = None
+    argv: list[str] | None = None
+    shell: bool = False
 
 
 def list_backends() -> list[BackendSpec]:
@@ -123,33 +188,63 @@ def format_backends(*, probe: bool = True) -> str:
         elif probe and b.id in {"manual", "dry-run"}:
             avail = "  [always]"
         lines.append(f"  {b.id:10} {b.title}{avail}")
+        if b.example:
+            lines.append(f"             cmd: {b.example}")
         if b.notes:
             lines.append(f"             {b.notes}")
     lines.append("")
     lines.append("Per agent: agents[].backend + optional agents[].cli / agents[].workdir")
+    lines.append("Dispatch: crewlab run | kickoff  (prompt → CLI headless → runs/<task>/result.md)")
     return "\n".join(lines)
 
 
-def resolve_agent_backend(agent: dict[str, Any]) -> BackendResolve:
-    """Resolve backend id + command for one agent dict."""
+def resolve_agent_backend(
+    agent: dict[str, Any],
+    *,
+    prompt_file: Path | None = None,
+    cwd: Path | None = None,
+) -> BackendResolve:
+    """Resolve backend id + argv/command for one agent dict."""
     raw = (agent.get("backend") or agent.get("runtime") or "manual").strip().lower()
     custom_cli = (agent.get("cli") or agent.get("backend_cmd") or "").strip()
+    pf = prompt_file or Path("prompt.md")
+    work = cwd or Path(".")
 
     if raw == "custom" or (raw == "shell" and custom_cli):
         if not custom_cli:
             return BackendResolve("shell", "", False, "shell/custom requires agents[].cli")
-        return BackendResolve(raw if raw != "custom" else "shell", custom_cli, True, "custom cli")
+        cmd = custom_cli.format(
+            prompt_file=str(pf),
+            prompt="",
+            cwd=str(work),
+            agent_id=str(agent.get("id") or ""),
+            task_id="",
+            goal="",
+            result_file="",
+            cli=custom_cli,
+        )
+        return BackendResolve(raw if raw != "custom" else "shell", cmd, True, "custom cli", shell=True)
 
     if raw not in BUILTIN_BACKENDS:
         return BackendResolve(raw, custom_cli, False, f"unknown backend: {raw}")
 
-    spec = BUILTIN_BACKENDS[raw]
     if raw in {"manual", "dry-run"}:
-        return BackendResolve(raw, "", True, spec.notes)
+        return BackendResolve(raw, "", True, BUILTIN_BACKENDS[raw].notes)
 
     if custom_cli:
-        return BackendResolve(raw, custom_cli, True, "override cli")
+        cmd = custom_cli.format(
+            prompt_file=str(pf),
+            prompt="",
+            cwd=str(work),
+            agent_id=str(agent.get("id") or ""),
+            task_id="",
+            goal="",
+            result_file="",
+            cli=custom_cli,
+        )
+        return BackendResolve(raw, cmd, True, "override cli", shell=True)
 
+    spec = BUILTIN_BACKENDS[raw]
     hit = next((n for n in spec.detect if shutil.which(n)), None) if spec.detect else None
     if spec.detect and not hit:
         return BackendResolve(
@@ -157,9 +252,12 @@ def resolve_agent_backend(agent: dict[str, Any]) -> BackendResolve:
             "",
             False,
             f"{raw} not on PATH — will write prompt only (manual fallback)",
-            detect_hit=None,
         )
-    return BackendResolve(raw, spec.command, True, "ok", detect_hit=hit)
+
+    builder = ARGV_BUILDERS.get(raw)
+    argv = builder(pf, work) if builder and prompt_file else None
+    display = " ".join(shlex.quote(x) for x in (argv or [raw])) if argv else (spec.example or raw)
+    return BackendResolve(raw, display, True, "ok", detect_hit=hit, argv=argv, shell=False)
 
 
 def render_command(
@@ -211,7 +309,7 @@ def invoke_backend(
     dry_run: bool = False,
     env: dict[str, str] | None = None,
 ) -> RunResult:
-    """Write prompt artifact and optionally execute agent CLI."""
+    """Write prompt artifact and optionally execute agent CLI (argv preferred)."""
     work_dir = Path(work_dir)
     work_dir.mkdir(parents=True, exist_ok=True)
     agent_id = str(agent.get("id") or "agent")
@@ -229,9 +327,16 @@ def invoke_backend(
             mode="dry-run",
         )
 
-    resolved = resolve_agent_backend(agent)
-    if resolved.backend_id in {"manual", "dry-run"} or not resolved.command:
-        # prompt-only path
+    run_cwd = Path(agent.get("workdir") or work_dir)
+    try:
+        run_cwd.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        run_cwd = work_dir
+
+    resolved = resolve_agent_backend(agent, prompt_file=prompt_file, cwd=run_cwd)
+    if resolved.backend_id in {"manual", "dry-run"} or (
+        not resolved.argv and not resolved.shell and not resolved.command
+    ):
         note = (
             f"# Awaiting {agent_id} ({resolved.backend_id})\n\n"
             f"Backend: {resolved.backend_id}\n"
@@ -251,22 +356,40 @@ def invoke_backend(
             error=resolved.reason if not resolved.available else None,
         )
 
-    cmd = render_command(
-        resolved.command,
-        prompt=prompt,
-        prompt_file=prompt_file,
-        cwd=work_dir,
-        agent_id=agent_id,
-        task_id=task_id,
-        goal=goal,
-        result_file=result_file,
-        cli=str(agent.get("cli") or ""),
-    )
-    run_cwd = Path(agent.get("workdir") or work_dir)
-    try:
-        run_cwd.mkdir(parents=True, exist_ok=True)
-    except Exception:
-        run_cwd = work_dir
+    # Rebuild argv now that prompt_file exists
+    if not resolved.shell and resolved.backend_id in ARGV_BUILDERS:
+        try:
+            argv = ARGV_BUILDERS[resolved.backend_id](prompt_file, run_cwd)
+        except Exception as e:
+            return RunResult(
+                ok=False,
+                backend=resolved.backend_id,
+                exit_code=None,
+                prompt_file=str(prompt_file),
+                result_file=str(result_file),
+                mode="executed",
+                error=f"argv build failed: {e}",
+            )
+        cmd_display = " ".join(shlex.quote(a) for a in argv[:4]) + (" …" if len(argv) > 4 else "")
+        use_shell = False
+        popen_arg: str | list[str] = argv
+    else:
+        cmd = resolved.command
+        if "{prompt_file}" in cmd or "{cwd}" in cmd:
+            cmd = render_command(
+                cmd,
+                prompt=prompt,
+                prompt_file=prompt_file,
+                cwd=run_cwd,
+                agent_id=agent_id,
+                task_id=task_id,
+                goal=goal,
+                result_file=result_file,
+                cli=str(agent.get("cli") or ""),
+            )
+        cmd_display = cmd
+        use_shell = True
+        popen_arg = cmd
 
     full_env = os.environ.copy()
     if env:
@@ -275,12 +398,12 @@ def invoke_backend(
     full_env["CREWLAB_TASK"] = task_id
     full_env["CREWLAB_PROMPT_FILE"] = str(prompt_file)
     full_env["CREWLAB_RESULT_FILE"] = str(result_file)
+    full_env["CREWLAB_GOAL"] = goal[:500]
 
     try:
-        # Windows: PowerShell-friendly; use shell=True for template expansion
         completed = subprocess.run(
-            cmd,
-            shell=True,
+            popen_arg,
+            shell=use_shell,
             cwd=str(run_cwd),
             capture_output=True,
             text=True,
@@ -306,7 +429,7 @@ def invoke_backend(
             stderr=err[:4000],
             prompt_file=str(prompt_file),
             result_file=str(result_file),
-            command=cmd,
+            command=cmd_display,
             mode="executed",
         )
     except subprocess.TimeoutExpired:
@@ -316,7 +439,7 @@ def invoke_backend(
             exit_code=None,
             prompt_file=str(prompt_file),
             result_file=str(result_file),
-            command=cmd,
+            command=cmd_display,
             mode="executed",
             error=f"timeout after {timeout}s",
         )
@@ -327,7 +450,7 @@ def invoke_backend(
             exit_code=None,
             prompt_file=str(prompt_file),
             result_file=str(result_file),
-            command=cmd,
+            command=cmd_display,
             mode="executed",
             error=str(e),
         )

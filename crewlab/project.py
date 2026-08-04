@@ -77,9 +77,41 @@ def set_task_status(
     task_id: str,
     status: str,
     result: str | None = None,
+    *,
+    spec: dict[str, Any] | None = None,
+    enforce_deps: bool = False,
 ) -> None:
+    """Update task status. When enforce_deps + sequential process, block early start."""
     if status not in ALLOWED_STATUS:
         raise ValueError(f"invalid status: {status}")
+    if (
+        enforce_deps
+        and spec is not None
+        and status in {"in_progress", "done"}
+    ):
+        from crewlab.process import normalize_process
+
+        if normalize_process(spec) == "sequential":
+            tmap = {
+                str(t.get("id")): t
+                for t in (spec.get("tasks") or [])
+                if isinstance(t, dict) and t.get("id")
+            }
+            deps = (tmap.get(task_id) or {}).get("depends_on") or []
+            st_map = {
+                str(t.get("id")): t.get("status")
+                for t in (state.get("tasks") or [])
+                if isinstance(t, dict)
+            }
+            unmet = [
+                str(d)
+                for d in deps
+                if st_map.get(str(d)) not in {"done", "skipped"}
+            ]
+            if unmet:
+                raise RuntimeError(
+                    f"sequential gate: task '{task_id}' waits on {', '.join(unmet)}"
+                )
     found = False
     for t in state.get("tasks") or []:
         if t.get("id") == task_id:

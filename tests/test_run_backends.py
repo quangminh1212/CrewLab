@@ -99,3 +99,29 @@ def test_plan_writes_file(tmp_path: Path):
     text = build_plan(spec, state, tmp_path)
     assert "Plan" in text
     assert (tmp_path / "PLAN.md").is_file()
+
+
+def test_sequential_gate_on_task_status(tmp_path: Path):
+    from crewlab.project import set_task_status
+
+    root = Path(__file__).resolve().parents[1]
+    spec = load_spec(root / "examples" / "crewai-sequential" / "crew-spec.yaml")
+    state = load_or_init_state(tmp_path, spec)
+    try:
+        set_task_status(
+            state, "draft", "in_progress", spec=spec, enforce_deps=True
+        )
+        raised = False
+    except RuntimeError as e:
+        raised = True
+        assert "sequential gate" in str(e)
+    assert raised
+    set_task_status(state, "gather-facts", "done", result="ok", spec=spec, enforce_deps=True)
+    set_task_status(state, "draft", "in_progress", spec=spec, enforce_deps=True)
+
+
+def test_argv_builders_exist():
+    from crewlab.backends import ARGV_BUILDERS
+
+    for name in ("hermes", "grok", "codex", "claude", "openclaw"):
+        assert name in ARGV_BUILDERS
