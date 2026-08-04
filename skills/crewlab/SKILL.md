@@ -8,7 +8,7 @@ description: >
 compatibility: Requires terminal; optional Hermes delegate_task for live roles
 metadata:
   author: CrewLab
-  version: "0.1.1"
+  version: "0.2.0"
   hermes:
     tags: [multi-agent, crew, meeting, orchestration, project]
     category: development
@@ -59,6 +59,12 @@ python -m pip install -e ".[dev]"
 crewlab init C:\Dev\CrewLab\runs\my-crew --name my-crew
 crewlab validate C:\Dev\CrewLab\runs\my-crew
 crewlab assign  C:\Dev\CrewLab\runs\my-crew
+crewlab plan    C:\Dev\CrewLab\runs\my-crew
+crewlab backends
+crewlab features --source crewai
+crewlab run     C:\Dev\CrewLab\runs\my-crew --dry-run
+crewlab run     C:\Dev\CrewLab\runs\my-crew --step   # dispatch one agent CLI
+crewlab chat    C:\Dev\CrewLab\runs\my-crew "sync note" --agent lead
 crewlab meeting C:\Dev\CrewLab\runs\my-crew --kind kickoff
 crewlab task    C:\Dev\CrewLab\runs\my-crew --agent builder --status done --result "impl ok"
 crewlab blocker add C:\Dev\CrewLab\runs\my-crew "waiting on API" --agent builder
@@ -68,6 +74,22 @@ crewlab reassign C:\Dev\CrewLab\runs\my-crew --agent builder --task review-and-t
 crewlab status  C:\Dev\CrewLab\runs\my-crew
 crewlab smoke
 ```
+
+## Multi-CLI agents
+
+Set per agent in `crew-spec.yaml`:
+
+```yaml
+agents:
+  - id: builder
+    role: Builder
+    task_id: implement
+    backend: codex   # hermes|grok|codex|claude|openclaw|opencode|cursor|manual|shell
+    # cli: 'optional override template with {prompt_file}'
+```
+
+`crewlab run` builds prompts, writes `runs/<task_id>/prompt.md`, invokes CLI when on PATH, else prompt-only (manual complete + `crewlab task … --status done`).
+
 
 Attach to Hermes (junction only, no core patch):
 
@@ -102,3 +124,5 @@ Each status report covers **only** that agent's owned task.
 
 Prefer CrewLab when the user wants a **team**, not a single loop agent.  
 Prefer DeerFlow subrepo when the team needs the full long-horizon harness (see `skills/deerflow/SKILL.md`).
+
+Feature parity vs referenced repos: `crewlab features` (matrix in `crewlab/features.py`).

@@ -10,30 +10,36 @@ agents:
     role: Researcher
     task_id: gather-facts
     mission: Collect facts only; no implementation.
+    backend: dry-run
   - id: writer
     role: Writer
     task_id: draft
     mission: Draft deliverable from research only.
+    backend: dry-run
   - id: editor
     role: Editor
     task_id: polish
     mission: Edit and quality-gate the draft only.
+    backend: dry-run
 tasks:
   - id: gather-facts
     title: Gather facts
     owner: researcher
     status: todo
     depends_on: []
+    expected_output: Bullet list of verified facts
   - id: draft
     title: Draft deliverable
     owner: writer
     status: todo
     depends_on: [gather-facts]
+    expected_output: Draft body ready for edit
   - id: polish
     title: Polish and ship
     owner: editor
     status: todo
     depends_on: [draft]
+    expected_output: Final polished deliverable
 meetings:
   default_kind: standup
   cadence: per-task

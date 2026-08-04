@@ -21,6 +21,22 @@ ALLOWED_MEETING_KINDS = frozenset(
     {"kickoff", "standup", "sync", "review", "retro", "decision", "closeout"}
 )
 ALLOWED_PROCESS = frozenset({"collaborative", "sequential", "hierarchical"})
+# Keep in sync with crewlab.backends.ALLOWED_BACKENDS
+ALLOWED_BACKENDS = frozenset(
+    {
+        "manual",
+        "dry-run",
+        "shell",
+        "hermes",
+        "grok",
+        "codex",
+        "claude",
+        "openclaw",
+        "opencode",
+        "cursor",
+        "custom",
+    }
+)
 
 
 @dataclass
@@ -111,6 +127,20 @@ def validate_spec(spec: dict[str, Any]) -> ValidationResult:
                 errors.append(
                     f"{path}: use single task_id only (found task_ids/tasks) — one agent one task"
                 )
+            backend = a.get("backend") or a.get("runtime")
+            if backend is not None:
+                b = str(backend).strip().lower()
+                if b and b not in ALLOWED_BACKENDS:
+                    errors.append(
+                        f"{path}.backend invalid: {backend} "
+                        f"(allowed: {sorted(ALLOWED_BACKENDS)})"
+                    )
+                if b in {"shell", "custom"} and not (a.get("cli") or a.get("backend_cmd")):
+                    errors.append(f"{path}: backend={b} requires agents[].cli")
+            if a.get("tools") is not None and not isinstance(a.get("tools"), list):
+                errors.append(f"{path}.tools must be a list")
+            if a.get("workdir") is not None and not isinstance(a.get("workdir"), str):
+                errors.append(f"{path}.workdir must be a string")
 
     task_ids: set[str] = set()
     if isinstance(tasks, list):
@@ -141,6 +171,12 @@ def validate_spec(spec: dict[str, Any]) -> ValidationResult:
             deps = t.get("depends_on") or []
             if deps and not isinstance(deps, list):
                 errors.append(f"{path}.depends_on must be a list")
+            if t.get("expected_output") is not None and not isinstance(
+                t.get("expected_output"), str
+            ):
+                errors.append(f"{path}.expected_output must be a string")
+            if t.get("tools") is not None and not isinstance(t.get("tools"), list):
+                errors.append(f"{path}.tools must be a list")
 
     # Every agent task_id must exist; every task should have an owner agent
     for aid, tid in agent_task_map.items():
@@ -199,6 +235,18 @@ def validate_spec(spec: dict[str, Any]) -> ValidationResult:
     # Collaboration rule: no single-agent "crew"
     if len(agent_ids) == 1:
         errors.append("crew needs ≥2 agents to meet and collaborate")
+
+    # Sequential deps should reference known tasks
+    if isinstance(tasks, list):
+        for raw in tasks:
+            t = _obj(raw)
+            for d in t.get("depends_on") or []:
+                if d not in task_ids:
+                    errors.append(f"task '{t.get('id')}' depends_on unknown task '{d}'")
+
+    kp = spec.get("knowledge_paths")
+    if kp is not None and not isinstance(kp, list):
+        errors.append("knowledge_paths must be a list of paths/strings")
 
     ok = len(errors) == 0
     return ValidationResult(ok=ok, errors=errors, warnings=warnings)

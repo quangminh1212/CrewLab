@@ -15,9 +15,11 @@ entries:
     url: https://github.com/crewAIInc/crewAI
     license: MIT
     status: integrated
-    role: Process model sequential/hierarchical + role-playing crew
+    role: Process sequential/hierarchical + kickoff/plan/memory/expected_output (native map)
     evidence:
       - crewlab/process.py
+      - crewlab/run.py
+      - crewlab/features.py
       - examples/crewai-sequential/crew-spec.yaml
   - id: chatdev
     url: https://github.com/OpenBMB/ChatDev
@@ -31,26 +33,33 @@ entries:
     url: https://github.com/FoundationAgents/MetaGPT
     license: MIT
     status: integrated
-    role: SOP software company agents → optional metagpt template
+    role: SOP software company agents + shared message pool
     evidence:
       - examples/metagpt-sop/crew-spec.yaml
+      - crewlab/chat.py
   - id: autogen
     url: https://github.com/microsoft/autogen
     license: CC-BY-4.0
-    status: referenced
-    role: Multi-agent conversation framework (pattern reference)
-    evidence: []
+    status: integrated
+    role: Multi-agent group chat + human-in-the-loop
+    evidence:
+      - crewlab/chat.py
+      - examples/multi-cli-room/crew-spec.yaml
   - id: superpowers
     url: https://github.com/obra/superpowers
     license: MIT
-    status: referenced
-    role: Skills methodology, worktrees, TDD, subagent execution
-    evidence: []
+    status: integrated
+    role: Skills + multi-subagent CLI dispatch
+    evidence:
+      - skills/crewlab/SKILL.md
+      - crewlab/backends.py
+      - crewlab/run.py
   - id: hermes-agent
     url: https://github.com/NousResearch/hermes-agent
     license: MIT
     status: integrated
-    role: Host runtime — skill junction attach
+    role: Host runtime — skill junction attach + hermes backend
     evidence:
       - crewlab/install.py
+      - crewlab/backends.py
       - skills/crewlab/SKILL.md

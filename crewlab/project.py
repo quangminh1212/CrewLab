@@ -299,7 +299,8 @@ def status_report(spec: dict[str, Any], state: dict[str, Any]) -> str:
             continue
         tid = a.get("task_id")
         st = next((t.get("status") for t in (state.get("tasks") or []) if t.get("id") == tid), "?")
-        lines.append(f"  - {a.get('id')} [{a.get('role')}] → {tid} ({st})")
+        backend = a.get("backend") or a.get("runtime") or "manual"
+        lines.append(f"  - {a.get('id')} [{a.get('role')}] backend={backend} → {tid} ({st})")
     for pn in process_notes(spec):
         lines.append(f"  · {pn}" if not pn.startswith("process=") else f"hint:  {pn}")
     open_b = list_blockers(state, open_only=True)

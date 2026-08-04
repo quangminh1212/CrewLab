@@ -13,6 +13,15 @@ venv/
 runs/*
 !runs/.gitkeep
 *.log
+# project runtime artifacts (any crew dir)
+**/STATE.yaml
+**/CHAT_LOG.md
+**/chat.jsonl
+**/RUN_LOG.md
+**/PLAN.md
+**/MEMORY.md
+**/last-meeting.json
+**/MEETING_LOG.md
 .DS_Store
 Thumbs.db
 

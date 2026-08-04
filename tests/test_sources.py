@@ -21,7 +21,13 @@ def test_cli_sources():
 
 def test_github_inspired_examples_validate():
     root = Path(__file__).resolve().parents[1]
-    for name in ("chatdev-software", "crewai-sequential", "metagpt-sop", "ship-feature"):
+    for name in (
+        "chatdev-software",
+        "crewai-sequential",
+        "metagpt-sop",
+        "ship-feature",
+        "multi-cli-room",
+    ):
         path = root / "examples" / name / "crew-spec.yaml"
         assert path.is_file(), name
         r = validate_spec(load_spec(path))

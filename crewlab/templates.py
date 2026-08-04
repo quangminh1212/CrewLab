@@ -18,24 +18,29 @@ DEFAULT_SPEC: dict[str, Any] = {
             "role": "Crew Lead",
             "task_id": "plan-and-coordinate",
             "mission": "Own the plan, meetings, and scope. Do not implement.",
+            "backend": "manual",
+            "manager": True,
         },
         {
             "id": "builder",
             "role": "Builder",
             "task_id": "implement-core",
             "mission": "Implement only the core deliverable task.",
+            "backend": "manual",
         },
         {
             "id": "reviewer",
             "role": "Reviewer",
             "task_id": "review-and-test",
             "mission": "Review, test, and block merge until quality bar is met.",
+            "backend": "manual",
         },
         {
             "id": "integrator",
             "role": "Integrator",
             "task_id": "integrate-and-ship",
             "mission": "Integrate pieces, finalize ship checklist, close project.",
+            "backend": "manual",
         },
     ],
     "tasks": [
@@ -45,6 +50,7 @@ DEFAULT_SPEC: dict[str, Any] = {
             "owner": "lead",
             "status": "todo",
             "depends_on": [],
+            "expected_output": "Scope plan + meeting cadence + DoD checklist",
         },
         {
             "id": "implement-core",
@@ -52,6 +58,7 @@ DEFAULT_SPEC: dict[str, Any] = {
             "owner": "builder",
             "status": "todo",
             "depends_on": ["plan-and-coordinate"],
+            "expected_output": "Working deliverable + path/notes",
         },
         {
             "id": "review-and-test",
@@ -59,6 +66,7 @@ DEFAULT_SPEC: dict[str, Any] = {
             "owner": "reviewer",
             "status": "todo",
             "depends_on": ["implement-core"],
+            "expected_output": "Pass/fail + defects list",
         },
         {
             "id": "integrate-and-ship",
@@ -66,6 +74,7 @@ DEFAULT_SPEC: dict[str, Any] = {
             "owner": "integrator",
             "status": "todo",
             "depends_on": ["review-and-test"],
+            "expected_output": "Ship checklist + final artifact path",
         },
     ],
     "meetings": {
@@ -137,8 +146,11 @@ def write_project_scaffold(path: Path, name: str | None = None) -> list[Path]:
         f"# {crew_name}\n\n"
         "```bash\n"
         "crewlab validate crew-spec.yaml\n"
+        "crewlab plan crew-spec.yaml\n"
+        "crewlab run crew-spec.yaml --dry-run\n"
         "crewlab meeting crew-spec.yaml\n"
         "crewlab status crew-spec.yaml\n"
+        "crewlab chat crew-spec.yaml \"kickoff notes\" --agent lead\n"
         "crewlab task crew-spec.yaml --task implement-core --status done --result 'shipped'\n"
         "```\n",
         encoding="utf-8",

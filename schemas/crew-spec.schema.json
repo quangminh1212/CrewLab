@@ -27,7 +27,42 @@
           "id": { "type": "string" },
           "role": { "type": "string" },
           "task_id": { "type": "string" },
-          "mission": { "type": "string" }
+          "mission": { "type": "string" },
+          "backend": {
+            "type": "string",
+            "description": "CLI runtime: manual|dry-run|hermes|grok|codex|claude|openclaw|opencode|cursor|shell|custom",
+            "enum": [
+              "manual",
+              "dry-run",
+              "hermes",
+              "grok",
+              "codex",
+              "claude",
+              "openclaw",
+              "opencode",
+              "cursor",
+              "shell",
+              "custom"
+            ]
+          },
+          "cli": {
+            "type": "string",
+            "description": "Optional command template override ({prompt_file}, {cwd}, …)"
+          },
+          "workdir": { "type": "string" },
+          "tools": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Advisory tool list (backend owns real tools)"
+          },
+          "manager": {
+            "type": "boolean",
+            "description": "Hierarchical process manager flag"
+          },
+          "knowledge_paths": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
         },
         "not": {
           "anyOf": [
@@ -55,9 +90,26 @@
           "depends_on": {
             "type": "array",
             "items": { "type": "string" }
+          },
+          "expected_output": {
+            "type": "string",
+            "description": "CrewAI-style expected_output for kickoff prompts"
+          },
+          "tools": {
+            "type": "array",
+            "items": { "type": "string" }
           }
         }
       }
+    },
+    "process": {
+      "type": "string",
+      "enum": ["collaborative", "sequential", "hierarchical"]
+    },
+    "knowledge_paths": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Shared knowledge mounted into task prompts"
     },
     "meetings": {
       "type": "object",

@@ -8,9 +8,14 @@ Multi-agent crews for Hermes / local CLI: **each agent owns one task**, the crew
 cd C:\Dev\CrewLab
 python -m pip install -e ".[dev]"
 crewlab smoke
+crewlab features                 # parity vs CrewAI/ChatDev/MetaGPT/…
+crewlab backends                 # hermes|grok|codex|claude|openclaw|…
 crewlab init runs\demo --name demo
 crewlab validate runs\demo
+crewlab plan runs\demo
+crewlab run runs\demo --dry-run  # kickoff (CrewAI-style)
 crewlab meeting runs\demo --kind kickoff
+crewlab chat runs\demo "shared note" --agent lead
 crewlab task runs\demo --agent builder --status in_progress
 crewlab blocker add runs\demo "need design sign-off" --agent builder
 crewlab reassign runs\demo --agent builder --task review-and-test

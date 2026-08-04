@@ -1,0 +1,87 @@
+# Multi-CLI room: heterogeneous agents (Grok / Hermes / Codex / Claude / OpenClaw …)
+# Each agent owns one task; kickoff dispatches via agents[].backend CLI adapters.
+schema_version: "1.0"
+name: multi-cli-room
+goal: Ship one small feature using a mixed-CLI multi-agent crew that plans, builds, reviews, and ships together.
+process: sequential
+source:
+  inspired_by:
+    - https://github.com/crewAIInc/crewAI
+    - https://github.com/microsoft/autogen
+    - https://github.com/FoundationAgents/MetaGPT
+agents:
+  - id: lead
+    role: Crew Lead
+    task_id: plan-scope
+    mission: Plan scope and coordinate only.
+    backend: hermes
+    manager: true
+  - id: researcher
+    role: Researcher
+    task_id: gather-context
+    mission: Gather facts and constraints only.
+    backend: grok
+  - id: builder
+    role: Builder
+    task_id: implement
+    mission: Implement the agreed change only.
+    backend: codex
+    tools: [shell, editor]
+  - id: reviewer
+    role: Reviewer
+    task_id: review
+    mission: Review and test only; block ship on defects.
+    backend: claude
+  - id: shipper
+    role: Integrator
+    task_id: ship
+    mission: Integrate, document, closeout only.
+    backend: openclaw
+tasks:
+  - id: plan-scope
+    title: Plan scope and success criteria
+    owner: lead
+    status: todo
+    depends_on: []
+    expected_output: Scope bullet list + DoD
+  - id: gather-context
+    title: Gather context and constraints
+    owner: researcher
+    status: todo
+    depends_on: [plan-scope]
+    expected_output: Facts + risks
+  - id: implement
+    title: Implement core change
+    owner: builder
+    status: todo
+    depends_on: [gather-context]
+    expected_output: Diff summary + how to test
+  - id: review
+    title: Review and test
+    owner: reviewer
+    status: todo
+    depends_on: [implement]
+    expected_output: PASS/FAIL + notes
+  - id: ship
+    title: Integrate and ship
+    owner: shipper
+    status: todo
+    depends_on: [review]
+    expected_output: Ship path + closeout note
+meetings:
+  default_kind: standup
+  cadence: per-task
+  phases: [open, status_reports, blockers, sync_decisions, next_actions, close]
+definition_of_done:
+  - All tasks done or skipped
+  - No open blockers
+  - Shared CHAT_LOG has closeout
+stop_conditions:
+  max_meetings: 16
+  max_kickoff_steps: 20
+  success_signal: all_tasks_done
+  failure_policy: stop_and_report
+knowledge_paths: []
+hermes:
+  skill: crewlab
+  delegate: true

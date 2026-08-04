@@ -22,6 +22,10 @@ from crewlab.project import (
     set_task_status,
     status_report,
 )
+from crewlab.backends import format_backends
+from crewlab.chat import append_message, format_recent
+from crewlab.features import format_features
+from crewlab.run import kickoff
 from crewlab.sources import check_catalog, format_catalog
 from crewlab.templates import write_init_spec, write_project_scaffold
 from crewlab.validate import ALLOWED_MEETING_KINDS, validate_spec
@@ -293,8 +297,103 @@ def _cmd_sources(args: argparse.Namespace) -> int:
     return 0 if not check_catalog() else 1
 
 
+def _cmd_features(args: argparse.Namespace) -> int:
+    print(format_features(source=args.source, gaps_only=args.gaps))
+    return 0
+
+
+def _cmd_backends(args: argparse.Namespace) -> int:
+    print(format_backends(probe=not args.no_probe))
+    return 0
+
+
+def _cmd_plan(args: argparse.Namespace) -> int:
+    from crewlab.run import build_plan as _build_plan
+
+    try:
+        spec = load_spec(args.spec)
+        v = validate_spec(spec)
+        if not v.ok:
+            print(v.summary(), file=sys.stderr)
+            return 1
+        project_dir = project_dir_for(args.spec)
+        state = load_or_init_state(project_dir, spec)
+        text = _build_plan(spec, state, project_dir)
+    except Exception as e:
+        print(f"FAIL plan: {e}", file=sys.stderr)
+        return 1
+    print(text)
+    return 0
+
+
+def _cmd_run(args: argparse.Namespace) -> int:
+    try:
+        spec = load_spec(args.spec)
+        out = kickoff(
+            spec,
+            args.spec,
+            dry_run=args.dry_run,
+            max_steps=args.max_steps,
+            timeout=args.timeout,
+            auto_complete=not args.no_auto_complete,
+            with_meeting=not args.no_meeting,
+            with_plan=not args.no_plan,
+            step=args.step,
+            agent_filter=args.agent,
+            task_filter=args.task,
+            verbose=args.verbose,
+        )
+    except Exception as e:
+        print(f"FAIL run: {e}", file=sys.stderr)
+        return 1
+    print(f"crew={out.get('crew')} process={out.get('process')}")
+    print(f"steps={out.get('step_count')} complete={out.get('complete')}")
+    for s in out.get("steps") or []:
+        print(
+            f"  - {s.get('task_id')} agent={s.get('agent')} "
+            f"backend={s.get('backend')} mode={s.get('mode')} ok={s.get('ok')}"
+        )
+        if s.get("prompt_file"):
+            print(f"      prompt: {s.get('prompt_file')}")
+        if s.get("error"):
+            print(f"      error: {s.get('error')}")
+    for n in out.get("notes") or []:
+        print(f"  note: {n}")
+    print(f"project_dir: {out.get('project_dir')}")
+    return 0 if out.get("complete") or (out.get("step_count") or 0) > 0 else 1
+
+
+def _cmd_chat(args: argparse.Namespace) -> int:
+    try:
+        spec = load_spec(args.spec)
+        project_dir = project_dir_for(args.spec)
+        load_or_init_state(project_dir, spec)
+        if args.list:
+            print(format_recent(project_dir, limit=args.limit))
+            return 0
+        text = args.text
+        if not text:
+            print("need message text or --list", file=sys.stderr)
+            return 1
+        agent = args.agent or "operator"
+        role = args.role or "Human"
+        msg = append_message(
+            project_dir,
+            agent=agent,
+            role=role,
+            text=text,
+            task_id=args.task,
+            kind=args.kind,
+        )
+        print(f"chat appended: {msg.get('at')} {agent}")
+        return 0
+    except Exception as e:
+        print(f"FAIL chat: {e}", file=sys.stderr)
+        return 1
+
+
 def _cmd_smoke(args: argparse.Namespace) -> int:
-    """End-to-end: init temp crew, validate, task updates, meeting, complete."""
+    """End-to-end: init temp crew, validate, kickoff dry-run, meeting, complete."""
     import shutil
     import tempfile
 
@@ -317,24 +416,36 @@ def _cmd_smoke(args: argparse.Namespace) -> int:
             print(v.summary(), file=sys.stderr)
             return 1
 
+    # feature matrix must load
+    print(format_features().splitlines()[-1])
+
     root = Path(tempfile.mkdtemp(prefix="crewlab-smoke-"))
     try:
         write_project_scaffold(root, name="smoke-crew")
         spec_path = root / "crew-spec.yaml"
+        # force dry-run backends for smoke
         spec = load_spec(spec_path)
+        for a in spec.get("agents") or []:
+            if isinstance(a, dict):
+                a["backend"] = "dry-run"
+        dump_yaml(spec_path, spec)
         v = validate_spec(spec)
         print(v.summary())
         if not v.ok:
             return 1
-        # mark all done
-        state = load_or_init_state(root, spec)
-        for t in state["tasks"]:
-            set_task_status(state, t["id"], "done", result="smoke ok")
-        save_state(root, state)
-        out = run_meeting(spec, spec_path)
-        print(f"meeting round={out['round']} complete={out['complete']}")
+        # dry-run kickoff should complete all sequential-ish tasks
+        out = kickoff(
+            spec,
+            spec_path,
+            dry_run=True,
+            max_steps=20,
+            with_meeting=True,
+            with_plan=True,
+            auto_complete=True,
+        )
+        print(f"kickoff steps={out['step_count']} complete={out['complete']}")
         if not out["complete"]:
-            print("FAIL: expected complete after all tasks done", file=sys.stderr)
+            print("FAIL: kickoff dry-run expected complete", file=sys.stderr)
             return 1
         print("smoke: PASS")
         return 0
@@ -442,7 +553,63 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("sources", help="List equivalent GitHub projects + integration check")
     s.set_defaults(func=_cmd_sources)
 
-    s = sub.add_parser("smoke", help="Self-test scaffold + meeting + complete")
+    s = sub.add_parser("features", help="Feature parity matrix vs CrewAI/ChatDev/MetaGPT/…")
+    s.add_argument("--source", default=None, help="Filter: crewai|chatdev|metagpt|autogen|…")
+    s.add_argument("--gaps", action="store_true", help="Show partial/n-a only")
+    s.set_defaults(func=_cmd_features)
+
+    s = sub.add_parser("backends", help="List multi-CLI agent backends (grok/hermes/codex/…)")
+    s.add_argument("--no-probe", action="store_true", help="Skip PATH probe")
+    s.set_defaults(func=_cmd_backends)
+
+    s = sub.add_parser("plan", help="Planning phase (CrewAI planning analogue)")
+    s.add_argument("spec")
+    s.set_defaults(func=_cmd_plan)
+
+    s = sub.add_parser(
+        "run",
+        help="Kickoff crew: dispatch ready tasks to agent CLI backends until done",
+    )
+    s.add_argument("spec")
+    s.add_argument("--dry-run", action="store_true", help="No CLI exec; auto-complete tasks")
+    s.add_argument("--step", action="store_true", help="Run only one ready task")
+    s.add_argument("--max-steps", type=int, default=None)
+    s.add_argument("--timeout", type=int, default=600)
+    s.add_argument("--agent", default=None, help="Only run this agent id")
+    s.add_argument("--task", default=None, help="Only run this task id")
+    s.add_argument("--no-plan", action="store_true")
+    s.add_argument("--no-meeting", action="store_true")
+    s.add_argument("--no-auto-complete", action="store_true")
+    s.add_argument("--verbose", action="store_true")
+    s.set_defaults(func=_cmd_run)
+
+    # alias
+    s = sub.add_parser("kickoff", help="Alias for run (CrewAI naming)")
+    s.add_argument("spec")
+    s.add_argument("--dry-run", action="store_true")
+    s.add_argument("--step", action="store_true")
+    s.add_argument("--max-steps", type=int, default=None)
+    s.add_argument("--timeout", type=int, default=600)
+    s.add_argument("--agent", default=None)
+    s.add_argument("--task", default=None)
+    s.add_argument("--no-plan", action="store_true")
+    s.add_argument("--no-meeting", action="store_true")
+    s.add_argument("--no-auto-complete", action="store_true")
+    s.add_argument("--verbose", action="store_true")
+    s.set_defaults(func=_cmd_run)
+
+    s = sub.add_parser("chat", help="Shared message pool (MetaGPT/AutoGen style)")
+    s.add_argument("spec")
+    s.add_argument("text", nargs="?", default=None, help="Message text")
+    s.add_argument("--agent", default=None)
+    s.add_argument("--role", default=None)
+    s.add_argument("--task", default=None)
+    s.add_argument("--kind", default="message")
+    s.add_argument("--list", action="store_true")
+    s.add_argument("--limit", type=int, default=20)
+    s.set_defaults(func=_cmd_chat)
+
+    s = sub.add_parser("smoke", help="Self-test scaffold + kickoff dry-run + complete")
     s.add_argument("--keep", action="store_true", help="Keep temp project dir")
     s.set_defaults(func=_cmd_smoke)
 
