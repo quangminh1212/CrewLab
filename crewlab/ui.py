@@ -19,9 +19,121 @@ from crewlab.room import ChatRoom
 
 # ---------------------------------------------------------------------------
 # UI: Telegram dark + Messenger bubbles + Zalo brand accents (theme switch)
+# Defining chrome tokens researched against Telegram Web / Messenger / Zalo Web.
+# Tests assert these shipped values (not re-implemented CSS).
 # ---------------------------------------------------------------------------
 
-ROOM_HTML = r"""<!DOCTYPE html>
+THEME_TOKENS: dict[str, dict[str, str]] = {
+    # Telegram Web dark: official brand blue #2AABEE, navy side panel
+    "telegram": {
+        "bg": "#0e1621",
+        "bg_chat": "#0b141a",
+        "panel": "#17212b",
+        "panel2": "#232e3c",
+        "hover": "#202b36",
+        "text": "#f5f5f5",
+        "muted": "#708499",
+        "accent": "#2AABEE",
+        "accent2": "#5288c1",
+        "me_bubble": "#2b5278",
+        "them_bubble": "#182533",
+        "sys_bubble": "#1c2733",
+        "border": "#0f141a",
+        "input": "#242f3d",
+        "online": "#4fae4e",
+        "danger": "#e53935",
+        "me_text": "#f5f5f5",
+        "family": "dark",
+    },
+    # Facebook Messenger default: brand #0084ff solid me-bubble, white text, light chrome
+    "messenger": {
+        "bg": "#f0f2f5",
+        "bg_chat": "#ffffff",
+        "panel": "#ffffff",
+        "panel2": "#f0f2f5",
+        "hover": "#e4e6eb",
+        "text": "#050505",
+        "muted": "#65676b",
+        "accent": "#0084ff",
+        "accent2": "#00c6ff",
+        "me_bubble": "#0084ff",
+        "them_bubble": "#e4e6eb",
+        "sys_bubble": "#e7f3ff",
+        "border": "#ced0d4",
+        "input": "#f0f2f5",
+        "online": "#31a24c",
+        "danger": "#f02849",
+        "me_text": "#ffffff",
+        "family": "light",
+    },
+    # Zalo Web: brand #0068ff, soft blue room, light-blue me bubble + dark text
+    "zalo": {
+        "bg": "#e8f3ff",
+        "bg_chat": "#e8f3ff",
+        "panel": "#ffffff",
+        "panel2": "#f0f7ff",
+        "hover": "#e3f0ff",
+        "text": "#081b33",
+        "muted": "#5a6b7d",
+        "accent": "#0068ff",
+        "accent2": "#00a3ff",
+        "me_bubble": "#d6ebff",
+        "them_bubble": "#ffffff",
+        "sys_bubble": "#fff8e6",
+        "border": "#d0e3ff",
+        "input": "#ffffff",
+        "online": "#1ec16b",
+        "danger": "#e74c3c",
+        "me_text": "#081b33",
+        "family": "light",
+    },
+}
+
+
+def theme_css_block() -> str:
+    """Render data-theme CSS variable blocks from THEME_TOKENS (single source)."""
+    parts: list[str] = []
+    for name, t in THEME_TOKENS.items():
+        parts.append(
+            f"""  html[data-theme="{name}"] {{
+    --bg: {t["bg"]};
+    --bg-chat: {t["bg_chat"]};
+    --panel: {t["panel"]};
+    --panel2: {t["panel2"]};
+    --hover: {t["hover"]};
+    --text: {t["text"]};
+    --muted: {t["muted"]};
+    --accent: {t["accent"]};
+    --accent2: {t["accent2"]};
+    --me-bubble: {t["me_bubble"]};
+    --them-bubble: {t["them_bubble"]};
+    --sys-bubble: {t["sys_bubble"]};
+    --border: {t["border"]};
+    --input: {t["input"]};
+    --online: {t["online"]};
+    --danger: {t["danger"]};
+    --me-text: {t["me_text"]};
+    --shadow: {"0 1px 2px rgba(0,0,0,.35)" if t["family"] == "dark" else ("0 1px 3px rgba(0,80,180,.12)" if name == "zalo" else "0 1px 2px rgba(0,0,0,.08)")};
+    --wallpaper: {_wallpaper_for(name)};
+  }}"""
+        )
+    return "\n".join(parts)
+
+
+def _wallpaper_for(name: str) -> str:
+    if name == "telegram":
+        return (
+            "radial-gradient(ellipse at 20% 0%, #132033 0%, transparent 50%), "
+            "radial-gradient(ellipse at 80% 100%, #0d1f18 0%, transparent 45%), "
+            "var(--bg-chat)"
+        )
+    if name == "messenger":
+        return "linear-gradient(180deg, #e7f3ff 0%, #ffffff 40%)"
+    return "linear-gradient(180deg, #cfe6ff 0%, #e8f3ff 30%, #dcefff 100%)"
+
+
+# ROOM_HTML is built once; theme CSS injected from THEME_TOKENS.
+_ROOM_HTML_HEAD = r"""<!DOCTYPE html>
 <html lang="vi" data-theme="telegram">
 <head>
 <meta charset="utf-8"/>
@@ -29,69 +141,9 @@ ROOM_HTML = r"""<!DOCTYPE html>
 <title>CrewLab Chat</title>
 <style>
   /* —— Theme tokens (Telegram / Messenger / Zalo) —— */
-  html[data-theme="telegram"] {
-    --bg: #0e1621;
-    --bg-chat: #0b141a;
-    --panel: #17212b;
-    --panel2: #232e3c;
-    --hover: #202b36;
-    --text: #f5f5f5;
-    --muted: #708499;
-    --accent: #2AABEE;
-    --accent2: #5288c1;
-    --me-bubble: #2b5278;
-    --them-bubble: #182533;
-    --sys-bubble: #1c2733;
-    --border: #0f141a;
-    --input: #242f3d;
-    --online: #4fae4e;
-    --danger: #e53935;
-    --shadow: 0 1px 2px rgba(0,0,0,.35);
-    --wallpaper: radial-gradient(ellipse at 20% 0%, #132033 0%, transparent 50%),
-                 radial-gradient(ellipse at 80% 100%, #0d1f18 0%, transparent 45%),
-                 var(--bg-chat);
-  }
-  html[data-theme="messenger"] {
-    --bg: #f0f2f5;
-    --bg-chat: #ffffff;
-    --panel: #ffffff;
-    --panel2: #f0f2f5;
-    --hover: #e4e6eb;
-    --text: #050505;
-    --muted: #65676b;
-    --accent: #0084ff;
-    --accent2: #00c6ff;
-    --me-bubble: #0084ff;
-    --them-bubble: #e4e6eb;
-    --sys-bubble: #e7f3ff;
-    --border: #ced0d4;
-    --input: #f0f2f5;
-    --online: #31a24c;
-    --danger: #f02849;
-    --shadow: 0 1px 2px rgba(0,0,0,.08);
-    --wallpaper: linear-gradient(180deg, #e7f3ff 0%, #ffffff 40%);
-  }
-  html[data-theme="zalo"] {
-    --bg: #e8f3ff;
-    --bg-chat: #e8f3ff;
-    --panel: #ffffff;
-    --panel2: #f0f7ff;
-    --hover: #e3f0ff;
-    --text: #081b33;
-    --muted: #5a6b7d;
-    --accent: #0068ff;
-    --accent2: #00a3ff;
-    --me-bubble: #e5f1ff;
-    --them-bubble: #ffffff;
-    --sys-bubble: #fff8e6;
-    --border: #d0e3ff;
-    --input: #ffffff;
-    --online: #1ec16b;
-    --danger: #e74c3c;
-    --shadow: 0 1px 3px rgba(0,80,180,.12);
-    --wallpaper: linear-gradient(180deg, #cfe6ff 0%, #e8f3ff 30%, #dcefff 100%);
-  }
+"""
 
+_ROOM_HTML_BODY = r"""
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
   body {
@@ -279,13 +331,22 @@ ROOM_HTML = r"""<!DOCTYPE html>
   }
   .row.me .bubble {
     background: var(--me-bubble);
+    color: var(--me-text);
     border-bottom-right-radius: 5px;
   }
-  html[data-theme="messenger"] .row.me .bubble { color: #fff; }
   html[data-theme="messenger"] .row.me .b-meta,
   html[data-theme="messenger"] .row.me .b-task { color: rgba(255,255,255,.78); }
   html[data-theme="zalo"] .row.me .bubble {
-    border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+    box-shadow: 0 1px 2px rgba(0, 80, 180, 0.08);
+  }
+  html[data-theme="zalo"] .row.me .b-meta,
+  html[data-theme="zalo"] .row.me .b-task { color: color-mix(in srgb, var(--muted) 85%, var(--accent)); }
+  html[data-theme="telegram"] .row.me .bubble {
+    border-bottom-right-radius: 4px;
+  }
+  html[data-theme="messenger"] .row.me .bubble {
+    border-bottom-right-radius: 4px;
   }
   .row:not(.me):not(.sys) .bubble { border-bottom-left-radius: 5px; }
   .row.sys .bubble {
@@ -642,6 +703,8 @@ setInterval(refresh, 2000);
 </body>
 </html>
 """
+
+ROOM_HTML = _ROOM_HTML_HEAD + theme_css_block() + "\n" + _ROOM_HTML_BODY
 
 
 class _RoomHolder:
