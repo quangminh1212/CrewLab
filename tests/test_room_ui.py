@@ -4,7 +4,7 @@ from crewlab.chat import full_transcript, load_messages
 from crewlab.cli import main
 from crewlab.io_util import dump_yaml, load_spec
 from crewlab.room import ChatRoom
-from crewlab.ui import ROOM_HTML, make_handler
+from crewlab.ui import ROOM_HTML, THEME_TOKENS, make_handler, theme_css_block
 
 
 def _room_proj(tmp_path: Path) -> Path:
@@ -172,3 +172,79 @@ def test_ui_html_has_messenger_surface():
     assert "zalo" in ROOM_HTML
     assert "typing" in ROOM_HTML
     assert "theme-btn" in ROOM_HTML
+
+
+def test_theme_tokens_match_brand_chrome():
+    """Shipped THEME_TOKENS define recognizable Telegram / Messenger / Zalo chrome."""
+    assert set(THEME_TOKENS) == {"telegram", "messenger", "zalo"}
+
+    tg = THEME_TOKENS["telegram"]
+    assert tg["family"] == "dark"
+    assert tg["accent"].upper() == "#2AABEE"
+    assert tg["bg"].lower() == "#0e1621"
+    assert tg["panel"].lower() == "#17212b"
+    assert tg["me_bubble"].lower() == "#2b5278"
+
+    ms = THEME_TOKENS["messenger"]
+    assert ms["family"] == "light"
+    assert ms["accent"].lower() == "#0084ff"
+    assert ms["me_bubble"].lower() == "#0084ff"
+    assert ms["me_text"].lower() == "#ffffff"
+    assert ms["bg"].lower() == "#f0f2f5"
+    assert ms["them_bubble"].lower() == "#e4e6eb"
+
+    zl = THEME_TOKENS["zalo"]
+    assert zl["family"] == "light"
+    assert zl["accent"].lower() == "#0068ff"
+    assert zl["me_bubble"].lower() != ms["me_bubble"].lower()
+    assert zl["me_text"].lower() != "#ffffff"
+    assert zl["bg"].lower().startswith("#e")  # soft blue family
+
+    # CSS generated from tokens must appear in the single HTML document
+    css = theme_css_block()
+    assert "#2AABEE" in css or "#2aabee" in css.lower()
+    assert "#0084ff" in css.lower()
+    assert "#0068ff" in css.lower()
+    for name in THEME_TOKENS:
+        assert f'data-theme="{name}"' in ROOM_HTML
+        assert f'data-theme="{name}"' in css or f"data-theme=\"{name}\"" in css
+    # layout chrome: sidebar + main + composer + send + theme switch
+    for sel in (".sidebar", ".main", ".composer", ".send-btn", ".theme-btn", ".bubble", ".row.me", ".row.sys"):
+        assert sel in ROOM_HTML
+    # switch control without page break (client-side applyTheme)
+    assert "applyTheme" in ROOM_HTML
+    assert "crewlab-ui-theme" in ROOM_HTML
+
+
+def test_cli_real_user_lifecycle_dry(tmp_path):
+    """Drive shipped main() end-to-end like an operator (init → speak)."""
+    proj = tmp_path / "life"
+    assert main(["init", str(proj), "--name", "life"]) == 0
+    assert main(["validate", str(proj)]) == 0
+    assert main(["plan", str(proj)]) == 0
+    assert main(["run", str(proj), "--dry-run", "--max-steps", "1"]) == 0
+    assert main(["meeting", str(proj), "--dry-run"]) == 0
+    assert main(["chat", str(proj), "hello operator"]) == 0
+    assert main(["task", str(proj), "--agent", "lead", "--status", "in_progress"]) == 0
+    assert main(["blocker", "add", str(proj), "wait design", "--task", "plan-and-coordinate"]) == 0
+    assert main(["blocker", "list", str(proj)]) == 0
+    assert main(["decision", "add", str(proj), "use dry-run"]) == 0
+    assert (
+        main(
+            [
+                "reassign",
+                str(proj),
+                "--agent",
+                "builder",
+                "--task",
+                "plan-and-coordinate",
+                "--decision",
+                "swap demo",
+            ]
+        )
+        == 0
+    )
+    assert main(["status", str(proj)]) == 0
+    assert main(["speak", str(proj), "--dry-run"]) == 0
+    assert main(["speak", str(proj), "--dry-run"]) == 0
+    assert main(["backends", "--no-probe"]) == 0
