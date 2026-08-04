@@ -51,7 +51,8 @@ def append_message(
     return msg
 
 
-def load_messages(project_dir: Path, *, limit: int = 50) -> list[dict[str, Any]]:
+def load_messages(project_dir: Path, *, limit: int | None = 50) -> list[dict[str, Any]]:
+    """Load chat messages. limit=None → full history (agents must read everything)."""
     path = chat_jsonl_path(project_dir)
     if not path.is_file():
         return []
@@ -64,6 +65,8 @@ def load_messages(project_dir: Path, *, limit: int = 50) -> list[dict[str, Any]]
             rows.append(json.loads(line))
         except json.JSONDecodeError:
             continue
+    if limit is None:
+        return rows
     return rows[-limit:]
 
 
@@ -80,12 +83,33 @@ def format_recent(project_dir: Path, *, limit: int = 20) -> str:
     return "\n".join(lines)
 
 
-def context_blob(project_dir: Path, *, limit: int = 12) -> str:
-    """Compact context for kickoff prompts."""
+def full_transcript(project_dir: Path) -> str:
+    """Full chat transcript — every agent must read this before speaking."""
+    msgs = load_messages(project_dir, limit=None)
+    if not msgs:
+        return "(no messages yet — you speak first after operator kickoff)"
+    parts = ["# FULL CHAT TRANSCRIPT (read every message before you reply)", ""]
+    for i, m in enumerate(msgs, 1):
+        who = m.get("agent") or "?"
+        role = m.get("role") or ""
+        task = m.get("task_id") or "-"
+        kind = m.get("kind") or "message"
+        at = m.get("at") or ""
+        text = m.get("text") or ""
+        parts.append(f"## [{i}] {at} | {who} ({role}) | task={task} | {kind}")
+        parts.append(text)
+        parts.append("")
+    return "\n".join(parts)
+
+
+def context_blob(project_dir: Path, *, limit: int | None = None) -> str:
+    """Chat context for prompts. Default = FULL history (no truncation)."""
+    if limit is None:
+        return full_transcript(project_dir)
     msgs = load_messages(project_dir, limit=limit)
     if not msgs:
         return "(no prior chat)"
     parts = []
     for m in msgs:
-        parts.append(f"- {m.get('agent')}: {(m.get('text') or '')[:400]}")
+        parts.append(f"- {m.get('agent')}: {(m.get('text') or '')}")
     return "\n".join(parts)

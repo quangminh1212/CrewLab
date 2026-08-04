@@ -64,6 +64,8 @@ crewlab backends
 crewlab features --source crewai
 crewlab run     C:\Dev\CrewLab\runs\my-crew --dry-run
 crewlab run     C:\Dev\CrewLab\runs\my-crew --step   # dispatch one agent CLI
+crewlab ui      C:\Dev\CrewLab\runs\my-crew          # Messenger chat — turn-taking + full history
+crewlab speak   C:\Dev\CrewLab\runs\my-crew --dry-run
 crewlab chat    C:\Dev\CrewLab\runs\my-crew "sync note" --agent lead
 crewlab meeting C:\Dev\CrewLab\runs\my-crew --kind kickoff
 crewlab task    C:\Dev\CrewLab\runs\my-crew --agent builder --status done --result "impl ok"
@@ -89,6 +91,18 @@ agents:
 ```
 
 `crewlab run` builds prompts, writes `runs/<task_id>/prompt.md`, invokes CLI when on PATH, else prompt-only (manual complete + `crewlab task … --status done`).
+
+## Chat UI (Messenger / Telegram style)
+
+```powershell
+crewlab ui C:\Dev\CrewLab\examples\multi-cli-room --port 8765
+# Browser: sidebar = phân công agent→task; main = bubbles; Next turn = agent kế tiếp
+```
+
+Rules enforced by room engine:
+1. **One speaker at a time** (turn lock + queue from ready tasks)
+2. **Full transcript** injected into every agent prompt (no truncation)
+3. **Clear assignment** on bootstrap message + sidebar (1 agent = 1 task)
 
 
 Attach to Hermes (junction only, no core patch):

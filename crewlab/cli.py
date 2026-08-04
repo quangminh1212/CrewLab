@@ -399,6 +399,51 @@ def _cmd_chat(args: argparse.Namespace) -> int:
         return 1
 
 
+def _cmd_ui(args: argparse.Namespace) -> int:
+    """Messenger/Telegram-style multi-agent chat room."""
+    from crewlab.ui import serve_room
+
+    try:
+        serve_room(
+            args.spec,
+            host=args.host,
+            port=args.port,
+            open_browser=not args.no_browser,
+        )
+    except Exception as e:
+        print(f"FAIL ui: {e}", file=sys.stderr)
+        return 1
+    return 0
+
+
+def _cmd_room_speak(args: argparse.Namespace) -> int:
+    """CLI: one agent turn in chat room (same engine as UI)."""
+    from crewlab.room import ChatRoom
+
+    try:
+        room = ChatRoom(args.spec)
+        out = room.speak(
+            agent_id=args.agent,
+            dry_run=args.dry_run,
+            timeout=args.timeout,
+            auto_complete=args.auto_complete,
+        )
+    except Exception as e:
+        print(f"FAIL speak: {e}", file=sys.stderr)
+        return 1
+    print(
+        f"agent={out.get('agent')} mode={out.get('mode')} "
+        f"backend={out.get('backend')} ok={out.get('ok')}"
+    )
+    msg = out.get("message") or {}
+    text = (msg.get("text") or "")[:500]
+    if text:
+        print(text)
+    if out.get("next_speaker"):
+        print(f"next_speaker: {out['next_speaker']}")
+    return 0 if out.get("ok") else 1
+
+
 def _cmd_smoke(args: argparse.Namespace) -> int:
     """End-to-end: init temp crew, validate, kickoff dry-run, meeting, complete."""
     import shutil
@@ -615,6 +660,27 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--list", action="store_true")
     s.add_argument("--limit", type=int, default=20)
     s.set_defaults(func=_cmd_chat)
+
+    s = sub.add_parser(
+        "ui",
+        help="Messenger/Telegram-style chat UI — agents speak in turn, full history",
+    )
+    s.add_argument("spec", help="crew-spec.yaml or project directory")
+    s.add_argument("--host", default="127.0.0.1")
+    s.add_argument("--port", type=int, default=8765)
+    s.add_argument("--no-browser", action="store_true")
+    s.set_defaults(func=_cmd_ui)
+
+    s = sub.add_parser(
+        "speak",
+        help="One chat-room turn (next agent speaks; full transcript in prompt)",
+    )
+    s.add_argument("spec")
+    s.add_argument("--agent", default=None, help="Force agent id (default: next in turn order)")
+    s.add_argument("--dry-run", action="store_true")
+    s.add_argument("--timeout", type=int, default=600)
+    s.add_argument("--auto-complete", action="store_true", help="Mark task done after speak")
+    s.set_defaults(func=_cmd_room_speak)
 
     s = sub.add_parser("smoke", help="Self-test scaffold + kickoff dry-run + complete")
     s.add_argument("--keep", action="store_true", help="Keep temp project dir")

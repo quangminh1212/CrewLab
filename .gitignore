@@ -22,6 +22,7 @@ runs/*
 **/MEMORY.md
 **/last-meeting.json
 **/MEETING_LOG.md
+**/ROOM.json
 .DS_Store
 Thumbs.db
 

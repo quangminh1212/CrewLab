@@ -14,6 +14,8 @@ crewlab init runs\demo --name demo
 crewlab validate runs\demo
 crewlab plan runs\demo
 crewlab run runs\demo --dry-run  # kickoff (CrewAI-style)
+crewlab ui runs\demo             # Messenger/Telegram chat room (browser)
+crewlab speak runs\demo --dry-run
 crewlab meeting runs\demo --kind kickoff
 crewlab chat runs\demo "shared note" --agent lead
 crewlab task runs\demo --agent builder --status in_progress
